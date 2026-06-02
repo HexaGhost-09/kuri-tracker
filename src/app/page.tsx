@@ -35,7 +35,9 @@ import {
   Cloud,
   CloudLightning,
   User,
-  ArrowLeft
+  ArrowLeft,
+  Gift,
+  Trophy
 } from 'lucide-react';
 import { 
   Subscriber, 
@@ -112,15 +114,13 @@ export default function Home() {
   // Run Auction Form
   const [auctionWinningBid, setAuctionWinningBid] = useState(400000); 
   const [auctionWinningSubId, setAuctionWinningSubId] = useState('');
+  const [auctionMode, setAuctionMode] = useState<'bidding' | 'luckydraw'>('bidding');
   
-  // Subscriber Search & Filters
-  const [subSearchQuery, setSubSearchQuery] = useState('');
-  
-  // Simulator state
-  const [simChitAmount, setSimChitAmount] = useState(500000);
-  const [simMonths, setSimMonths] = useState(20);
-  const [simCommission, setSimCommission] = useState(5);
-  const [simAvgDiscount, setSimAvgDiscount] = useState(25); 
+  // Lucky Draw States
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawCandidateIndex, setDrawCandidateIndex] = useState(0);
+  const [luckyDrawWinner, setLuckyDrawWinner] = useState<{ id: string; name: string; ticketNumber: number } | null>(null); 
+  const [subSearchQuery, setSubSearchQuery] = useState(''); 
 
   // --- SESSION CHECKING ON MOUNT ---
   useEffect(() => {
@@ -765,10 +765,49 @@ export default function Home() {
       });
   }, [selectedKuri, subscribers]);
 
+  const triggerLuckyDraw = () => {
+    if (!selectedKuri || prizedCandidates.length === 0) return;
+    
+    setIsDrawing(true);
+    setLuckyDrawWinner(null);
+    
+    let currentIdx = 0;
+    const intervalTime = 60; 
+    const totalDuration = 2000; 
+    const steps = totalDuration / intervalTime;
+    let stepCount = 0;
+    
+    const interval = setInterval(() => {
+      if (prizedCandidates.length === 0) {
+        clearInterval(interval);
+        setIsDrawing(false);
+        return;
+      }
+      currentIdx = Math.floor(Math.random() * prizedCandidates.length);
+      setDrawCandidateIndex(currentIdx);
+      stepCount++;
+      
+      if (stepCount >= steps) {
+        clearInterval(interval);
+        const finalWinner = prizedCandidates[currentIdx];
+        setLuckyDrawWinner(finalWinner);
+        setAuctionWinningSubId(finalWinner.id);
+        
+        // Auto-calculate the maximum payout (No discount except foreman commission)
+        const foremanComm = (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100;
+        const maxPayout = Number(selectedKuri.totalValue) - foremanComm;
+        setAuctionWinningBid(maxPayout);
+        setIsDrawing(false);
+      }
+    }, intervalTime);
+  };
+
   const openAuctionModal = () => {
     if (!selectedKuri) return;
     const commission = (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100;
     setAuctionWinningBid(Number(selectedKuri.totalValue) - commission - 10000);
+    setAuctionMode('bidding');
+    setLuckyDrawWinner(null);
     if (prizedCandidates.length > 0) {
       setAuctionWinningSubId(prizedCandidates[0].id);
     }
@@ -1845,33 +1884,120 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- MODAL 3: RUN AUCTION --- */}
+      {/* --- MODAL 3: RUN AUCTION / MONTHLY DRAW --- */}
       {isAuctionModalOpen && selectedKuri && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
           <div className="w-full max-w-md rounded-2xl glass-panel p-6 space-y-6 relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsAuctionModalOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"><X className="h-5 w-5" /></button>
             <div>
-              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2"><TrendingUp className="h-5 w-5 text-indigo-400" />Conduct Month {selectedKuri.currentMonth} Auction</h3>
-              <p className="text-xs text-zinc-400 mt-1">Enter winning bid payout accepted by prized subscriber.</p>
+              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-indigo-400" />
+                Month {selectedKuri.currentMonth} Settlement
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1">Select winner via bidding auction or automatic monthly lucky draw.</p>
             </div>
-            <form onSubmit={handleRunAuction} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Select Prized Subscriber</label>
-                <select required value={auctionWinningSubId} onChange={(e) => setAuctionWinningSubId(e.target.value)} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
-                  {prizedCandidates.map(c => <option key={c.id} value={c.id}>Ticket #{c.ticketNumber} - {c.name}</option>)}
-                  {prizedCandidates.length === 0 && <option value="">No remaining active candidates</option>}
-                </select>
-              </div>
 
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-zinc-400"><label>Prize Payout Bid (₹)</label><span>Max: ₹{(Number(selectedKuri.totalValue) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent))/100).toLocaleString('en-IN')}</span></div>
-                <input type="number" required value={auctionWinningBid} onChange={(e) => setAuctionWinningBid(Number(e.target.value))} placeholder="e.g. 430000" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
-              </div>
+            {/* Mode selection tabs */}
+            <div className="flex bg-zinc-900/60 p-1 rounded-xl border border-zinc-800/80">
+              <button
+                type="button"
+                onClick={() => { setAuctionMode('bidding'); setLuckyDrawWinner(null); }}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  auctionMode === 'bidding'
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                Bidding Auction
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuctionMode('luckydraw'); setLuckyDrawWinner(null); }}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  auctionMode === 'luckydraw'
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <Gift className="h-3.5 w-3.5" />
+                Lucky Draw
+              </button>
+            </div>
+
+            <form onSubmit={handleRunAuction} className="space-y-4">
+              {auctionMode === 'bidding' ? (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400">Select Prized Subscriber</label>
+                    <select required value={auctionWinningSubId} onChange={(e) => setAuctionWinningSubId(e.target.value)} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
+                      {prizedCandidates.map(c => <option key={c.id} value={c.id}>Ticket #{c.ticketNumber} - {c.name}</option>)}
+                      {prizedCandidates.length === 0 && <option value="">No remaining active candidates</option>}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs font-semibold text-zinc-400"><label>Prize Payout Bid (₹)</label><span>Max: ₹{(Number(selectedKuri.totalValue) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent))/100).toLocaleString('en-IN')}</span></div>
+                    <input type="number" required value={auctionWinningBid} onChange={(e) => setAuctionWinningBid(Number(e.target.value))} placeholder="e.g. 430000" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  {isDrawing ? (
+                    <div className="p-6 bg-indigo-950/20 border border-indigo-500/25 rounded-2xl flex flex-col items-center justify-center text-center space-y-4 animate-pulse">
+                      <div className="h-10 w-10 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white uppercase tracking-wider font-mono">Drawing Lucky Ticket...</h4>
+                        <p className="text-lg font-black text-indigo-400 mt-2 font-mono">
+                          {prizedCandidates[drawCandidateIndex]?.name || 'Selecting...'}
+                        </p>
+                        <span className="text-[10px] text-zinc-500 font-bold block mt-1">Ticket #{prizedCandidates[drawCandidateIndex]?.ticketNumber}</span>
+                      </div>
+                    </div>
+                  ) : luckyDrawWinner ? (
+                    <div className="p-6 bg-gradient-to-r from-indigo-950/40 to-emerald-950/40 border border-emerald-500/25 rounded-2xl flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden animate-float">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent pointer-events-none" />
+                      <Trophy className="h-12 w-12 text-amber-400 animate-pulse animate-bounce" />
+                      <div>
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-extrabold uppercase tracking-wider font-mono">Draw Winner Selected!</span>
+                        <h4 className="text-lg font-black text-white mt-2 tracking-tight">{luckyDrawWinner.name}</h4>
+                        <p className="text-xs text-zinc-400 mt-0.5 font-mono">Ticket Number: <span className="text-white font-bold">#{luckyDrawWinner.ticketNumber}</span></p>
+                      </div>
+                      <div className="pt-2 text-[10px] text-zinc-500 font-medium">
+                        Auto-configured payout: <span className="text-white font-bold">₹{auctionWinningBid.toLocaleString('en-IN')}</span> (Max Payout minus Foreman's Commission)
+                      </div>
+                      <button
+                        type="button"
+                        onClick={triggerLuckyDraw}
+                        className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline mt-1"
+                      >
+                        Re-draw another person
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-center space-y-4">
+                      <Gift className="h-12 w-12 text-indigo-400" />
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Monthly Lucky Draw Selection</h4>
+                        <p className="text-xs text-zinc-400 mt-1">Automatically select a unique winning subscriber at random from the {prizedCandidates.length} remaining eligible candidates.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={triggerLuckyDraw}
+                        disabled={prizedCandidates.length === 0}
+                        className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-indigo-600/10 active:scale-95 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 font-semibold"
+                      >
+                        🎲 Trigger Lucky Draw
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="p-3.5 rounded-xl bg-zinc-900/40 border border-zinc-800 space-y-2 text-xs font-mono">
                 <div className="flex justify-between text-zinc-400"><span>Chit Fund Pool:</span><span className="font-bold text-white">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</span></div>
                 <div className="flex justify-between text-zinc-400"><span>Foreman Commission:</span><span className="font-bold text-white">₹{((Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100).toLocaleString('en-IN')}</span></div>
-                <div className="flex justify-between text-zinc-400"><span>Total Discount:</span><span className="font-bold text-white">₹{(Number(selectedKuri.totalValue) - auctionWinningBid).toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between text-zinc-400"><span>Total Discount:</span><span className="font-bold text-white">₹{Math.round(Number(selectedKuri.totalValue) - auctionWinningBid).toLocaleString('en-IN')}</span></div>
                 <div className="flex justify-between border-t border-zinc-850 pt-2 text-zinc-300 font-semibold font-sans">
                   <span>Projected Dividend / member:</span>
                   <span className="text-emerald-400 font-mono">₹{Math.max(0, Math.round(((Number(selectedKuri.totalValue) - auctionWinningBid) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100) / selectedKuri.subscribers.length)).toLocaleString('en-IN')}</span>
@@ -1880,7 +2006,13 @@ export default function Home() {
 
               <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsAuctionModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>
-                <button type="submit" disabled={prizedCandidates.length === 0} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10">Execute Bid Auction</button>
+                <button 
+                  type="submit" 
+                  disabled={prizedCandidates.length === 0 || isDrawing || (auctionMode === 'luckydraw' && !luckyDrawWinner)} 
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10"
+                >
+                  {auctionMode === 'luckydraw' ? 'Confirm Draw Winner Payout' : 'Execute Bid Auction'}
+                </button>
               </div>
             </form>
           </div>
