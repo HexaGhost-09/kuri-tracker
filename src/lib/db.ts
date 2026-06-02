@@ -20,7 +20,7 @@ export async function initDb() {
         name VARCHAR(100) NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
-        role VARCHAR(20) NOT NULL DEFAULT 'personal',
+        role VARCHAR(20) NOT NULL DEFAULT 'admin',
         uuid VARCHAR(50) UNIQUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -28,7 +28,7 @@ export async function initDb() {
 
     // Self-healing migrations for existing tables
     await client.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'personal';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS uuid VARCHAR(50) UNIQUE;
     `);
 

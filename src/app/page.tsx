@@ -75,7 +75,7 @@ export default function Home() {
     id: number;
     name: string;
     email: string;
-    role?: 'personal' | 'admin' | 'member';
+    role?: 'admin' | 'member';
     uuid?: string;
   }
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -88,7 +88,7 @@ export default function Home() {
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
-  const [authRole, setAuthRole] = useState<'personal' | 'admin' | 'member'>('personal');
+  const [authRole, setAuthRole] = useState<'admin' | 'member'>('admin');
 
   // Sync State
   const [syncStatus, setSyncStatus] = useState<'syncing' | 'synced' | 'local' | 'error'>('local');
@@ -1015,18 +1015,7 @@ export default function Home() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Account Type</label>
-                  <div className="grid grid-cols-3 gap-1.5 bg-zinc-900/60 p-1 rounded-xl border border-zinc-850">
-                    <button
-                      type="button"
-                      onClick={() => setAuthRole('personal')}
-                      className={`py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 ${
-                        authRole === 'personal'
-                          ? 'bg-indigo-600 text-white shadow-md'
-                          : 'text-zinc-500 hover:text-zinc-300'
-                      }`}
-                    >
-                      Personal
-                    </button>
+                  <div className="grid grid-cols-2 gap-1.5 bg-zinc-900/60 p-1 rounded-xl border border-zinc-850">
                     <button
                       type="button"
                       onClick={() => setAuthRole('admin')}
@@ -1051,7 +1040,6 @@ export default function Home() {
                     </button>
                   </div>
                   <p className="text-[9px] text-zinc-500 leading-normal px-1">
-                    {authRole === 'personal' && 'Standalone ledger tracking just for your own personal plans.'}
                     {authRole === 'admin' && 'Organize group saving pools, run monthly auctions, add subscribers.'}
                     {authRole === 'member' && 'Read-only dashboard view linked to a group admin via UUID.'}
                   </p>

@@ -16,8 +16,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const selectedRole = role || 'personal';
-    if (!['personal', 'admin', 'member'].includes(selectedRole)) {
+    const selectedRole = role || 'admin';
+    if (!['admin', 'member'].includes(selectedRole)) {
       return NextResponse.json(
         { error: 'Invalid account type role selection' },
         { status: 400 }
