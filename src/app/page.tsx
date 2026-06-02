@@ -75,6 +75,8 @@ export default function Home() {
     id: number;
     name: string;
     email: string;
+    role?: 'personal' | 'admin' | 'member';
+    uuid?: string;
   }
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -86,6 +88,7 @@ export default function Home() {
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [authRole, setAuthRole] = useState<'personal' | 'admin' | 'member'>('personal');
 
   // Sync State
   const [syncStatus, setSyncStatus] = useState<'syncing' | 'synced' | 'local' | 'error'>('local');
@@ -104,6 +107,7 @@ export default function Home() {
   const [newSubName, setNewSubName] = useState('');
   const [newSubPhone, setNewSubPhone] = useState('');
   const [newSubEmail, setNewSubEmail] = useState('');
+  const [newSubMemberUuid, setNewSubMemberUuid] = useState('');
   
   // Run Auction Form
   const [auctionWinningBid, setAuctionWinningBid] = useState(400000); 
@@ -134,6 +138,17 @@ export default function Home() {
           const syncRes = await fetch('/api/sync');
           const syncData = await syncRes.json();
           
+          if (data.user.role === 'member') {
+            setSubscribers(syncData.subscribers || []);
+            setKuries(syncData.kuries || []);
+            setAuctions(syncData.auctions || []);
+            setPayments(syncData.payments || []);
+            setSyncStatus('synced');
+            setLastSynced(new Date().toLocaleTimeString());
+            setIsAuthChecking(false);
+            return;
+          }
+
           if (syncData.kuries && syncData.kuries.length > 0) {
             setSubscribers(syncData.subscribers);
             setKuries(syncData.kuries);
@@ -236,7 +251,8 @@ export default function Home() {
           body: JSON.stringify({
             name: authName,
             email: authEmail,
-            password: authPassword
+            password: authPassword,
+            role: authRole
           })
         });
         
@@ -264,24 +280,33 @@ export default function Home() {
         setSyncStatus('syncing');
         setPageState('dashboard');
         
-        // Seed new Neon account
-        await fetch('/api/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            subscribers: DEFAULT_SUBSCRIBERS,
-            kuries: DEFAULT_KURIES,
-            auctions: DEFAULT_AUCTIONS,
-            payments: DEFAULT_PAYMENTS
-          })
-        });
-        
-        setSubscribers(DEFAULT_SUBSCRIBERS);
-        setKuries(DEFAULT_KURIES);
-        setAuctions(DEFAULT_AUCTIONS);
-        setPayments(DEFAULT_PAYMENTS);
-        setSyncStatus('synced');
-        setLastSynced(new Date().toLocaleTimeString());
+        if (loginData.user.role === 'member') {
+          setSubscribers([]);
+          setKuries([]);
+          setAuctions([]);
+          setPayments([]);
+          setSyncStatus('synced');
+          setLastSynced(new Date().toLocaleTimeString());
+        } else {
+          // Seed new Neon account
+          await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subscribers: DEFAULT_SUBSCRIBERS,
+              kuries: DEFAULT_KURIES,
+              auctions: DEFAULT_AUCTIONS,
+              payments: DEFAULT_PAYMENTS
+            })
+          });
+          
+          setSubscribers(DEFAULT_SUBSCRIBERS);
+          setKuries(DEFAULT_KURIES);
+          setAuctions(DEFAULT_AUCTIONS);
+          setPayments(DEFAULT_PAYMENTS);
+          setSyncStatus('synced');
+          setLastSynced(new Date().toLocaleTimeString());
+        }
 
       } else {
         const loginRes = await fetch('/api/auth/login', {
@@ -306,7 +331,12 @@ export default function Home() {
         const syncRes = await fetch('/api/sync');
         const syncData = await syncRes.json();
         
-        if (syncData.kuries && syncData.kuries.length > 0) {
+        if (loginData.user.role === 'member') {
+          setSubscribers(syncData.subscribers || []);
+          setKuries(syncData.kuries || []);
+          setAuctions(syncData.auctions || []);
+          setPayments(syncData.payments || []);
+        } else if (syncData.kuries && syncData.kuries.length > 0) {
           setSubscribers(syncData.subscribers);
           setKuries(syncData.kuries);
           setAuctions(syncData.auctions);
@@ -399,6 +429,7 @@ export default function Home() {
       name: newSubName,
       phone: newSubPhone || '+91 99999 00000',
       email: newSubEmail || `${newSubName.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
+      memberUuid: newSubMemberUuid.trim() || undefined
     };
     
     const updatedSubs = [...subscribers, newSub];
@@ -407,6 +438,7 @@ export default function Home() {
     setNewSubName('');
     setNewSubPhone('');
     setNewSubEmail('');
+    setNewSubMemberUuid('');
     setIsSubscriberModalOpen(false);
   };
 
@@ -563,6 +595,10 @@ export default function Home() {
 
   // Toggle Payment Status
   const togglePaymentStatus = (paymentId: string) => {
+    if (user?.role === 'member') {
+      alert('Read-Only Mode: Only Group Admins can toggle subscriber payment collections.');
+      return;
+    }
     const updatedPayments: Payment[] = payments.map(pay => {
       if (pay.id === paymentId) {
         return {
@@ -820,7 +856,7 @@ export default function Home() {
               <Layers className="h-4.5 w-4.5 text-indigo-400" />
             </div>
             <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-              KuriFlow
+              Kuri Tracker
             </span>
           </div>
         </header>
@@ -834,7 +870,7 @@ export default function Home() {
             </div>
             
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight bg-gradient-to-b from-white to-zinc-400 bg-clip-text text-transparent leading-none py-1">
-              Automated Chit Fund & Auction Tracking
+              Kuri Tracker
             </h1>
             
             <p className="text-zinc-400 text-sm sm:text-lg max-w-2xl mx-auto leading-relaxed">
@@ -842,13 +878,20 @@ export default function Home() {
             </p>
           </div>
 
-          <button
-            onClick={() => { setAuthTab('login'); setPageState('auth'); }}
-            className="px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-lg shadow-indigo-600/15 flex items-center gap-2 group animate-float border border-white/5"
-          >
-            Access Application
-            <ArrowRight className="h-4.5 w-4.5 group-hover:translate-x-1 transition-transform" />
-          </button>
+          <div className="flex flex-col items-center gap-4">
+            <button
+              onClick={() => { setAuthTab('login'); setPageState('auth'); }}
+              className="px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-lg shadow-indigo-600/15 flex items-center gap-2 group animate-float border border-white/5"
+            >
+              Access Application
+              <ArrowRight className="h-4.5 w-4.5 group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-950/80 border border-emerald-500/15 text-[10px] text-emerald-400 font-bold uppercase tracking-widest shadow-lg shadow-emerald-500/5">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              Secured by Neon
+            </div>
+          </div>
 
           {/* Simple bullet points */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-12 max-w-3xl w-full">
@@ -880,7 +923,7 @@ export default function Home() {
 
         {/* Minimal Footer */}
         <footer className="w-full max-w-7xl mx-auto py-8 px-6 text-center text-xs text-zinc-600 relative z-10 border-t border-zinc-900">
-          <p>© {new Date().getFullYear()} KuriFlow. Powered by Neon Authorize. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Kuri Tracker , All rights reserved.</p>
         </footer>
       </div>
     );
@@ -954,20 +997,66 @@ export default function Home() {
           {/* Auth form */}
           <form onSubmit={handleAuthSubmit} className="space-y-4">
             {authTab === 'signup' && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Full Name</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ramesh Pillai"
-                    value={authName}
-                    onChange={(e) => setAuthName(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
-                  />
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-400">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Pillai"
+                      value={authName}
+                      onChange={(e) => setAuthName(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
-              </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-400">Account Type</label>
+                  <div className="grid grid-cols-3 gap-1.5 bg-zinc-900/60 p-1 rounded-xl border border-zinc-850">
+                    <button
+                      type="button"
+                      onClick={() => setAuthRole('personal')}
+                      className={`py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 ${
+                        authRole === 'personal'
+                          ? 'bg-indigo-600 text-white shadow-md'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      Personal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthRole('admin')}
+                      className={`py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 ${
+                        authRole === 'admin'
+                          ? 'bg-indigo-600 text-white shadow-md'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      Admin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthRole('member')}
+                      className={`py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 ${
+                        authRole === 'member'
+                          ? 'bg-indigo-600 text-white shadow-md'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      Member
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-zinc-500 leading-normal px-1">
+                    {authRole === 'personal' && 'Standalone ledger tracking just for your own personal plans.'}
+                    {authRole === 'admin' && 'Organize group saving pools, run monthly auctions, add subscribers.'}
+                    {authRole === 'member' && 'Read-only dashboard view linked to a group admin via UUID.'}
+                  </p>
+                </div>
+              </>
             )}
 
             <div className="space-y-1.5">
@@ -1017,6 +1106,14 @@ export default function Home() {
                 </>
               )}
             </button>
+
+            {/* Neon Security Badge */}
+            <div className="pt-3 border-t border-zinc-900 flex justify-center">
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-950/80 border border-emerald-500/15 text-[9px] text-emerald-400 font-extrabold uppercase tracking-wider shadow-sm">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                Secured by Neon
+              </div>
+            </div>
           </form>
 
         </div>
@@ -1042,13 +1139,13 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-                  KuriFlow
+                  Kuri Tracker
                 </span>
                 <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                   PRO
                 </span>
               </div>
-              <p className="text-xs text-zinc-500 font-medium">Neon PostgreSQL Managed Chit Fund Tracker</p>
+              <p className="text-xs text-zinc-500 font-medium">Neon PostgreSQL Managed Kuri Tracker</p>
             </div>
           </div>
 
@@ -1147,20 +1244,18 @@ export default function Home() {
             ROI Chitty Simulator
           </button>
 
-          <div className="hidden lg:block mt-8 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/80">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-4 w-4 text-indigo-400" />
-              <span className="text-xs font-semibold text-zinc-300">Quick Simulation</span>
+          <div className="hidden lg:block mt-8 p-4 rounded-2xl bg-zinc-900/30 border border-emerald-500/20 text-left space-y-2 shadow-lg shadow-emerald-500/5">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-400 uppercase tracking-widest">
+              <ShieldCheck className="h-4.5 w-4.5 text-emerald-400" />
+              Secured by Neon
             </div>
-            <p className="text-xs text-zinc-500 leading-normal mb-3">
-              Simulate investment yields and compound dividend returns in real-time with our custom planner.
+            <p className="text-[11px] text-zinc-400 leading-relaxed font-semibold">
+              Transactional cloud storage via Neon Serverless Postgres. Fully isolated, safe, and secure sandbox database layers.
             </p>
-            <button
-              onClick={() => setActiveTab('calculator')}
-              className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium rounded-lg border border-zinc-700 transition-colors"
-            >
-              Open Simulator
-            </button>
+            <div className="pt-2 flex items-center justify-between text-[10px] text-zinc-500 font-mono font-bold border-t border-zinc-800">
+              <span>SSL ENCRYPTED</span>
+              <span className="text-emerald-500">100% PERSISTENT</span>
+            </div>
           </div>
         </nav>
 
@@ -1171,33 +1266,63 @@ export default function Home() {
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
               
+              {/* Member UUID Banner */}
+              {user?.role === 'member' && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/40 to-sky-950/40 border border-indigo-500/25 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-lg shadow-indigo-500/5 relative overflow-hidden animate-float">
+                  <div className="absolute right-0 bottom-0 top-0 w-1/4 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5 font-mono tracking-wider">
+                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                      YOUR CHIT SUBSCRIBER UUID
+                    </h4>
+                    <p className="text-[10px] text-zinc-400 mt-1 font-medium">
+                      Provide this 128-bit unique ID to your Group Admin to link your live read-only dashboard.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-zinc-950/80 px-3 py-2 rounded-xl border border-zinc-800 max-w-full overflow-hidden relative z-10">
+                    <code className="text-xs font-mono text-indigo-300 break-all select-all font-semibold">{user.uuid}</code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(user.uuid || '');
+                        alert('UUID copied to clipboard!');
+                      }}
+                      className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[10px] font-extrabold uppercase rounded-lg border border-indigo-500/20 transition-all shrink-0 active:scale-95"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Top Banner */}
               <div className="p-6 rounded-2xl bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-indigo-950/20 border border-zinc-800 relative overflow-hidden">
                 <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div>
                     <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2 animate-float">
-                      Welcome to KuriFlow, {user?.name}!
+                      Welcome to Kuri Tracker, {user?.name}!
                       <Sparkles className="h-5 w-5 text-amber-400 animate-pulse" />
                     </h2>
                     <p className="text-zinc-400 text-sm mt-1 max-w-xl">
                       Organize members, schedule auctions, distribute dividends automatically, and monitor collections instantly in one premium glass dashboard.
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button
-                      onClick={() => setIsKuriModalOpen(true)}
-                      className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/15 flex items-center gap-2"
-                    >
-                      <Plus className="h-4 w-4" /> Create Kuri Scheme
-                    </button>
-                    <button
-                      onClick={() => setIsSubscriberModalOpen(true)}
-                      className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-sm rounded-xl border border-zinc-700 transition-colors flex items-center gap-2"
-                    >
-                      <UserPlus className="h-4 w-4" /> Add Subscriber
-                    </button>
-                  </div>
+                  {user?.role !== 'member' && (
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        onClick={() => setIsKuriModalOpen(true)}
+                        className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/15 flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" /> Create Kuri Scheme
+                      </button>
+                      <button
+                        onClick={() => setIsSubscriberModalOpen(true)}
+                        className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-sm rounded-xl border border-zinc-700 transition-colors flex items-center gap-2"
+                      >
+                        <UserPlus className="h-4 w-4" /> Add Subscriber
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1484,14 +1609,16 @@ export default function Home() {
                       <p className="text-xs text-zinc-500 font-semibold mt-1">Scheme started on {new Date(selectedKuri.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      {selectedKuri.status === 'active' && (
-                        <button onClick={openAuctionModal} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
-                          <TrendingUp className="h-4.5 w-4.5" /> Run Month {selectedKuri.currentMonth} Auction
-                        </button>
-                      )}
-                      <button onClick={() => handleDeleteKuri(selectedKuri.id)} className="p-2.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl border border-zinc-800 transition-all" title="Delete Scheme"><Trash2 className="h-4.5 w-4.5" /></button>
-                    </div>
+                    {user?.role !== 'member' && (
+                      <div className="flex items-center gap-3">
+                        {selectedKuri.status === 'active' && (
+                          <button onClick={openAuctionModal} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
+                            <TrendingUp className="h-4.5 w-4.5" /> Run Month {selectedKuri.currentMonth} Auction
+                          </button>
+                        )}
+                        <button onClick={() => handleDeleteKuri(selectedKuri.id)} className="p-2.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl border border-zinc-800 transition-all" title="Delete Scheme"><Trash2 className="h-4.5 w-4.5" /></button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1638,9 +1765,11 @@ export default function Home() {
                   <h2 className="text-xl font-bold text-white tracking-tight">Subscribers registry pool</h2>
                   <p className="text-xs text-zinc-400 mt-0.5">Manage global contact lists and enrolled active schemes</p>
                 </div>
-                <button onClick={() => setIsSubscriberModalOpen(true)} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
-                  <Plus className="h-4 w-4" /> Register New Subscriber
-                </button>
+                {user?.role !== 'member' && (
+                  <button onClick={() => setIsSubscriberModalOpen(true)} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
+                    <Plus className="h-4 w-4" /> Register New Subscriber
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/80">
@@ -1656,17 +1785,24 @@ export default function Home() {
                   const prizedCount = enrolledSchemes.filter(k => k.subscribers.find(ks => ks.subscriberId === sub.id)?.isPrized).length;
 
                   return (
-                    <div key={sub.id} className="rounded-2xl glass-card p-5 flex flex-col justify-between h-[210px] relative group">
+                    <div key={sub.id} className="rounded-2xl glass-card p-5 flex flex-col justify-between min-h-[210px] h-auto relative group">
                       <div>
                         <div className="flex justify-between items-start gap-2">
                           <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/10 flex items-center justify-center font-bold font-mono">{sub.name.charAt(0)}</div>
-                          <button onClick={() => handleDeleteSubscriber(sub.id)} className="p-1.5 text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                          {user?.role !== 'member' && (
+                            <button onClick={() => handleDeleteSubscriber(sub.id)} className="p-1.5 text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                          )}
                         </div>
                         <h3 className="text-base font-bold text-white mt-3.5 tracking-tight">{sub.name}</h3>
                         <div className="mt-2 space-y-1 text-xs text-zinc-500 font-medium font-mono">
                           <span className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> {sub.phone}</span>
                           <span className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> {sub.email}</span>
                         </div>
+                        {sub.memberUuid && (
+                          <div className="mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10 text-[9px] font-mono text-emerald-400 break-all select-all font-semibold" title="Linked Registered Group Member Account">
+                            LINKED: {sub.memberUuid}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center justify-between border-t border-zinc-800/80 pt-3.5 mt-4">
                         <div className="text-[11px] text-zinc-400">Enrolled: <span className="font-bold text-white">{enrolledSchemes.length} Schemes</span></div>
@@ -1700,7 +1836,7 @@ export default function Home() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono"><label>Foreman Commission</label><span className="text-white">{simCommission}%</span></div>
-                    <input type="range" min="2" max="10" step="1" value={simCommission} onChange={(e) => setSimCommission(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
+                    <input type="range" min="0" max="10" step="1" value={simCommission} onChange={(e) => setSimCommission(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono"><label>Expected Average Bid Discount</label><span className="text-white">{simAvgDiscount}%</span></div>
@@ -1795,7 +1931,7 @@ export default function Home() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Commission (%)</label>
-                  <input type="number" required min="1" max="15" value={newKuriCommission} onChange={(e) => setNewKuriCommission(Number(e.target.value))} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
+                  <input type="number" required min="0" max="15" value={newKuriCommission} onChange={(e) => setNewKuriCommission(Number(e.target.value))} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Start Date</label>
@@ -1848,6 +1984,13 @@ export default function Home() {
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-zinc-400">Email Address</label>
                 <input type="email" value={newSubEmail} onChange={(e) => setNewSubEmail(e.target.value)} placeholder="ramesh@gmail.com" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-400">Link Member UUID (Optional)</label>
+                <input type="text" value={newSubMemberUuid} onChange={(e) => setNewSubMemberUuid(e.target.value)} placeholder="e.g. 1c23a456-7890-bcde-fgh1-23456789abcd" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500 font-mono" />
+                <p className="text-[9px] text-zinc-500 leading-normal">
+                  Link this subscriber card to a registered Member UUID to synchronize their read-only portal view.
+                </p>
               </div>
               <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsSubscriberModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>

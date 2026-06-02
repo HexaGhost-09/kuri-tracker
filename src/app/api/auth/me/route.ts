@@ -17,7 +17,7 @@ export async function GET() {
 
     const decoded = jwt.verify(tokenCookie.value, JWT_SECRET) as { userId: number };
     
-    const result = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [decoded.userId]);
+    const result = await pool.query('SELECT id, name, email, role, uuid FROM users WHERE id = $1', [decoded.userId]);
     if (result.rows.length === 0) {
       return NextResponse.json({ user: null }, { status: 200 });
     }

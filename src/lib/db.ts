@@ -20,9 +20,18 @@ export async function initDb() {
         name VARCHAR(100) NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'personal',
+        uuid VARCHAR(50) UNIQUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Self-healing migrations for existing tables
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'personal';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS uuid VARCHAR(50) UNIQUE;
+    `);
+
 
     // Create Kuries table
     await client.query(`
@@ -60,9 +69,16 @@ export async function initDb() {
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         name VARCHAR(100) NOT NULL,
         phone VARCHAR(20),
-        email VARCHAR(100)
+        email VARCHAR(100),
+        member_uuid VARCHAR(50)
       );
     `);
+
+    // Self-healing migration for global_subscribers
+    await client.query(`
+      ALTER TABLE global_subscribers ADD COLUMN IF NOT EXISTS member_uuid VARCHAR(50);
+    `);
+
 
     // Create Auctions table
     await client.query(`

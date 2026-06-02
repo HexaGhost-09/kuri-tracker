@@ -7,11 +7,19 @@ export async function POST(request: Request) {
     // Ensure DB is initialized
     await initDb();
 
-    const { name, email, password } = await request.json();
+    const { name, email, password, role } = await request.json();
 
     if (!name || !email || !password) {
       return NextResponse.json(
         { error: 'Name, email, and password are required' },
+        { status: 400 }
+      );
+    }
+
+    const selectedRole = role || 'personal';
+    if (!['personal', 'admin', 'member'].includes(selectedRole)) {
+      return NextResponse.json(
+        { error: 'Invalid account type role selection' },
         { status: 400 }
       );
     }
@@ -44,10 +52,13 @@ export async function POST(request: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Generate a unique 128-bit UUID code
+    const userUuid = crypto.randomUUID();
+
     // Insert user
     const result = await pool.query(
-      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email',
-      [name, email.toLowerCase(), hashedPassword]
+      'INSERT INTO users (name, email, password, role, uuid) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, uuid',
+      [name, email.toLowerCase(), hashedPassword, selectedRole, userUuid]
     );
 
     const newUser = result.rows[0];

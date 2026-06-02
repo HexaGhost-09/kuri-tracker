@@ -19,80 +19,188 @@ export async function GET() {
     const decoded = jwt.verify(tokenCookie.value, JWT_SECRET) as { userId: number };
     const userId = decoded.userId;
 
-    // 1. Fetch Global Subscribers
-    const subsResult = await pool.query(
-      'SELECT id, name, phone, email FROM global_subscribers WHERE user_id = $1',
-      [userId]
-    );
-    const subscribers = subsResult.rows;
+    // Check role and uuid
+    const roleCheck = await pool.query('SELECT role, uuid FROM users WHERE id = $1', [userId]);
+    if (roleCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    const userRole = roleCheck.rows[0].role;
+    const userUuid = roleCheck.rows[0].uuid;
 
-    // 2. Fetch Kuries
-    const kuriesResult = await pool.query(
-      'SELECT id, name, total_value as "totalValue", duration_months as "durationMonths", installment_amount as "installmentAmount", foreman_commission_percent as "foremanCommissionPercent", start_date as "startDate", status, current_month as "currentMonth" FROM kuries WHERE user_id = $1',
-      [userId]
-    );
-    
-    const kuriesList = [];
-    for (const k of kuriesResult.rows) {
-      // Fetch enrolled subscribers for this Kuri
-      const ksResult = await pool.query(
-        'SELECT subscriber_id as "subscriberId", ticket_number as "ticketNumber", is_prized as "isPrized", prized_month as "prizedMonth", prized_amount as "prizedAmount" FROM kuri_subscribers WHERE kuri_id = $1',
-        [k.id]
+    let subscribers = [];
+    let kuriesList = [];
+    let auctions = [];
+    let payments = [];
+
+    if (userRole === 'member') {
+      // --- GROUP MEMBER READ-ONLY DASHBOARD PULL ---
+      // 1. Fetch Global Subscribers involved in their enrolled Kuries
+      const subsResult = await pool.query(
+        `SELECT DISTINCT gs.id, gs.name, gs.phone, gs.email, gs.member_uuid as "memberUuid" 
+         FROM global_subscribers gs
+         INNER JOIN kuri_subscribers ks ON gs.id = ks.subscriber_id
+         WHERE ks.kuri_id IN (
+           SELECT DISTINCT ks2.kuri_id FROM kuri_subscribers ks2
+           INNER JOIN global_subscribers gs2 ON ks2.subscriber_id = gs2.id
+           WHERE gs2.member_uuid = $1
+         )`,
+        [userUuid]
+      );
+      subscribers = subsResult.rows;
+
+      // 2. Fetch enrolled Kuries
+      const kuriesResult = await pool.query(
+        `SELECT DISTINCT k.id, k.name, k.total_value as "totalValue", k.duration_months as "durationMonths", 
+                         k.installment_amount as "installmentAmount", k.foreman_commission_percent as "foremanCommissionPercent", 
+                         k.start_date as "startDate", k.status, k.current_month as "currentMonth"
+         FROM kuries k
+         INNER JOIN kuri_subscribers ks ON k.id = ks.kuri_id
+         INNER JOIN global_subscribers gs ON ks.subscriber_id = gs.id
+         WHERE gs.member_uuid = $1`,
+        [userUuid]
       );
       
-      kuriesList.push({
-        ...k,
-        totalValue: Number(k.totalValue),
-        installmentAmount: Number(k.installmentAmount),
-        foremanCommissionPercent: Number(k.foremanCommissionPercent),
-        currentMonth: Number(k.currentMonth),
-        durationMonths: Number(k.durationMonths),
-        subscribers: ksResult.rows.map(sub => ({
-          ...sub,
-          isPrized: Boolean(sub.isPrized),
-          ticketNumber: Number(sub.ticketNumber),
-          prizedMonth: sub.prizedMonth ? Number(sub.prizedMonth) : undefined,
-          prizedAmount: sub.prizedAmount ? Number(sub.prizedAmount) : undefined
-        }))
-      });
+      for (const k of kuriesResult.rows) {
+        const ksResult = await pool.query(
+          `SELECT subscriber_id as "subscriberId", ticket_number as "ticketNumber", 
+                  is_prized as "isPrized", prized_month as "prizedMonth", prized_amount as "prizedAmount" 
+           FROM kuri_subscribers WHERE kuri_id = $1`,
+          [k.id]
+        );
+        
+        kuriesList.push({
+          ...k,
+          totalValue: Number(k.totalValue),
+          installmentAmount: Number(k.installmentAmount),
+          foremanCommissionPercent: Number(k.foremanCommissionPercent),
+          currentMonth: Number(k.currentMonth),
+          durationMonths: Number(k.durationMonths),
+          subscribers: ksResult.rows.map(sub => ({
+            ...sub,
+            isPrized: Boolean(sub.isPrized),
+            ticketNumber: Number(sub.ticketNumber),
+            prizedMonth: sub.prizedMonth ? Number(sub.prizedMonth) : undefined,
+            prizedAmount: sub.prizedAmount ? Number(sub.prizedAmount) : undefined
+          }))
+        });
+      }
+
+      // 3. Fetch Auctions
+      const auctionsResult = await pool.query(
+        `SELECT DISTINCT a.id, a.kuri_id as "kuriId", a.month, a.date, a.winning_subscriber_id as "winningSubscriberId", 
+                         a.winning_bid as "winningBid", a.discount, a.commission, a.dividend_per_member as "dividendPerMember", 
+                         a.net_installment as "netInstallment"
+         FROM auctions a
+         WHERE a.kuri_id IN (
+           SELECT DISTINCT ks.kuri_id FROM kuri_subscribers ks
+           INNER JOIN global_subscribers gs ON ks.subscriber_id = gs.id
+           WHERE gs.member_uuid = $1
+         )`,
+        [userUuid]
+      );
+
+      auctions = auctionsResult.rows.map(a => ({
+        ...a,
+        month: Number(a.month),
+        winningBid: Number(a.winningBid),
+        discount: Number(a.discount),
+        commission: Number(a.commission),
+        dividendPerMember: Number(a.dividendPerMember),
+        netInstallment: Number(a.netInstallment)
+      }));
+
+      // 4. Fetch Payments
+      const paymentsResult = await pool.query(
+        `SELECT DISTINCT p.id, p.kuri_id as "kuriId", p.subscriber_id as "subscriberId", p.month, p.amount, p.date, p.status
+         FROM payments p
+         WHERE p.kuri_id IN (
+           SELECT DISTINCT ks.kuri_id FROM kuri_subscribers ks
+           INNER JOIN global_subscribers gs ON ks.subscriber_id = gs.id
+           WHERE gs.member_uuid = $1
+         )`,
+        [userUuid]
+      );
+
+      payments = paymentsResult.rows.map(p => ({
+        ...p,
+        month: Number(p.month),
+        amount: Number(p.amount)
+      }));
+
+    } else {
+      // --- PERSONAL TRACKER OR GROUP ADMIN STANDARD PULL ---
+      // 1. Fetch Global Subscribers
+      const subsResult = await pool.query(
+        'SELECT id, name, phone, email, member_uuid as "memberUuid" FROM global_subscribers WHERE user_id = $1',
+        [userId]
+      );
+      subscribers = subsResult.rows;
+
+      // 2. Fetch Kuries
+      const kuriesResult = await pool.query(
+        'SELECT id, name, total_value as "totalValue", duration_months as "durationMonths", installment_amount as "installmentAmount", foreman_commission_percent as "foremanCommissionPercent", start_date as "startDate", status, current_month as "currentMonth" FROM kuries WHERE user_id = $1',
+        [userId]
+      );
+      
+      for (const k of kuriesResult.rows) {
+        const ksResult = await pool.query(
+          'SELECT subscriber_id as "subscriberId", ticket_number as "ticketNumber", is_prized as "isPrized", prized_month as "prizedMonth", prized_amount as "prizedAmount" FROM kuri_subscribers WHERE kuri_id = $1',
+          [k.id]
+        );
+        
+        kuriesList.push({
+          ...k,
+          totalValue: Number(k.totalValue),
+          installmentAmount: Number(k.installmentAmount),
+          foremanCommissionPercent: Number(k.foremanCommissionPercent),
+          currentMonth: Number(k.currentMonth),
+          durationMonths: Number(k.durationMonths),
+          subscribers: ksResult.rows.map(sub => ({
+            ...sub,
+            isPrized: Boolean(sub.isPrized),
+            ticketNumber: Number(sub.ticketNumber),
+            prizedMonth: sub.prizedMonth ? Number(sub.prizedMonth) : undefined,
+            prizedAmount: sub.prizedAmount ? Number(sub.prizedAmount) : undefined
+          }))
+        });
+      }
+
+      // 3. Fetch Auctions
+      const auctionsResult = await pool.query(
+        `SELECT a.id, a.kuri_id as "kuriId", a.month, a.date, a.winning_subscriber_id as "winningSubscriberId", 
+                a.winning_bid as "winningBid", a.discount, a.commission, a.dividend_per_member as "dividendPerMember", 
+                a.net_installment as "netInstallment"
+         FROM auctions a
+         INNER JOIN kuries k ON a.kuri_id = k.id
+         WHERE k.user_id = $1`,
+        [userId]
+      );
+
+      auctions = auctionsResult.rows.map(a => ({
+        ...a,
+        month: Number(a.month),
+        winningBid: Number(a.winningBid),
+        discount: Number(a.discount),
+        commission: Number(a.commission),
+        dividendPerMember: Number(a.dividendPerMember),
+        netInstallment: Number(a.netInstallment)
+      }));
+
+      // 4. Fetch Payments
+      const paymentsResult = await pool.query(
+        `SELECT p.id, p.kuri_id as "kuriId", p.subscriber_id as "subscriberId", p.month, p.amount, p.date, p.status
+         FROM payments p
+         INNER JOIN kuries k ON p.kuri_id = k.id
+         WHERE k.user_id = $1`,
+        [userId]
+      );
+
+      payments = paymentsResult.rows.map(p => ({
+        ...p,
+        month: Number(p.month),
+        amount: Number(p.amount)
+      }));
     }
-
-    // 3. Fetch Auctions
-    // Since auctions are child-entities of kuries, we can fetch all auctions whose kuri_id is in user's kuries
-    const auctionsResult = await pool.query(
-      `SELECT a.id, a.kuri_id as "kuriId", a.month, a.date, a.winning_subscriber_id as "winningSubscriberId", 
-              a.winning_bid as "winningBid", a.discount, a.commission, a.dividend_per_member as "dividendPerMember", 
-              a.net_installment as "netInstallment"
-       FROM auctions a
-       INNER JOIN kuries k ON a.kuri_id = k.id
-       WHERE k.user_id = $1`,
-      [userId]
-    );
-
-    const auctions = auctionsResult.rows.map(a => ({
-      ...a,
-      month: Number(a.month),
-      winningBid: Number(a.winningBid),
-      discount: Number(a.discount),
-      commission: Number(a.commission),
-      dividendPerMember: Number(a.dividendPerMember),
-      netInstallment: Number(a.netInstallment)
-    }));
-
-    // 4. Fetch Payments
-    const paymentsResult = await pool.query(
-      `SELECT p.id, p.kuri_id as "kuriId", p.subscriber_id as "subscriberId", p.month, p.amount, p.date, p.status
-       FROM payments p
-       INNER JOIN kuries k ON p.kuri_id = k.id
-       WHERE k.user_id = $1`,
-      [userId]
-    );
-
-    const payments = paymentsResult.rows.map(p => ({
-      ...p,
-      month: Number(p.month),
-      amount: Number(p.amount)
-    }));
 
     return NextResponse.json({
       subscribers,
@@ -123,6 +231,17 @@ export async function POST(request: Request) {
     const decoded = jwt.verify(tokenCookie.value, JWT_SECRET) as { userId: number };
     const userId = decoded.userId;
 
+    // Check role (Members are read-only!)
+    const roleCheck = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+    if (roleCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    const userRole = roleCheck.rows[0].role;
+
+    if (userRole === 'member') {
+      return NextResponse.json({ message: 'Read-only subscriber dashboard. Saves bypassed.' }, { status: 200 });
+    }
+
     const { subscribers, kuries, auctions, payments } = await request.json();
 
     // Start database transaction
@@ -136,8 +255,8 @@ export async function POST(request: Request) {
     if (subscribers && subscribers.length > 0) {
       for (const sub of subscribers) {
         await client.query(
-          'INSERT INTO global_subscribers (id, user_id, name, phone, email) VALUES ($1, $2, $3, $4, $5)',
-          [sub.id, userId, sub.name, sub.phone, sub.email]
+          'INSERT INTO global_subscribers (id, user_id, name, phone, email, member_uuid) VALUES ($1, $2, $3, $4, $5, $6)',
+          [sub.id, userId, sub.name, sub.phone, sub.email, sub.memberUuid || null]
         );
       }
     }
