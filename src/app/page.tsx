@@ -647,61 +647,7 @@ export default function Home() {
     }
   };
 
-  // --- FINANCIAL CALCULATOR / SIMULATION LOGIC ---
-  const simulationSchedule = useMemo(() => {
-    const amount = Number(simChitAmount);
-    const months = Number(simMonths);
-    const commPct = Number(simCommission);
-    const commission = (amount * commPct) / 100;
-    
-    const avgDiscountAmt = amount * (simAvgDiscount / 100);
-    const totalAvailDividends = avgDiscountAmt - commission;
-    
-    let totalPaid = 0;
-    const schedule = [];
-    
-    for (let m = 1; m <= months; m++) {
-      const maxDiscountPct = simAvgDiscount * 1.5; 
-      const minDiscountPct = commPct; 
-      
-      const ratio = (m - 1) / (months - 1 || 1);
-      const currentDiscountPct = maxDiscountPct - (maxDiscountPct - minDiscountPct) * Math.pow(ratio, 1.5);
-      
-      const currentDiscount = amount * (currentDiscountPct / 100);
-      const currentCommission = commission;
-      const currentDividendPool = Math.max(0, currentDiscount - currentCommission);
-      const dividendPerMember = currentDividendPool / months;
-      
-      const standardInstallment = amount / months;
-      const netInstallment = standardInstallment - dividendPerMember;
-      const prizedPayout = amount - currentDiscount;
-      
-      totalPaid += netInstallment;
-      
-      schedule.push({
-        month: m,
-        netInstallment: Math.round(netInstallment),
-        prizedPayout: Math.round(prizedPayout),
-        dividendEarned: Math.round(dividendPerMember),
-        discountPct: Math.round(currentDiscountPct),
-        cumulativePaid: Math.round(totalPaid)
-      });
-    }
-    
-    const totalDividendsEarned = schedule.reduce((sum, item) => sum + item.dividendEarned, 0);
-    const netReturn = amount - totalPaid;
-    const returnRatePct = (netReturn / totalPaid) * 100;
-    
-    return {
-      schedule,
-      totalPaid: Math.round(totalPaid),
-      totalDividendsEarned: Math.round(totalDividendsEarned),
-      netReturn: Math.round(netReturn),
-      returnRatePct: Number(returnRatePct.toFixed(2)),
-      avgInstallment: Math.round(totalPaid / months),
-      commissionTotal: commission * months
-    };
-  }, [simChitAmount, simMonths, simCommission, simAvgDiscount]);
+
 
   // --- RENDER RECENT TRANSACTIONS ---
   const recentActivities = useMemo(() => {
@@ -1207,30 +1153,19 @@ export default function Home() {
             <Building className="h-4.5 w-4.5" />
             Active Kuries ({kuries.length})
           </button>
-
-          <button
-            onClick={() => { setActiveTab('subscribers'); setSelectedKuriId(null); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
-              activeTab === 'subscribers'
-                ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/10 glow-indigo'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
-            }`}
-          >
-            <Users className="h-4.5 w-4.5" />
-            Subscribers Pool
-          </button>
-
-          <button
-            onClick={() => { setActiveTab('calculator'); setSelectedKuriId(null); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
-              activeTab === 'calculator'
-                ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/10 glow-indigo'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
-            }`}
-          >
-            <Calculator className="h-4.5 w-4.5" />
-            ROI Chitty Simulator
-          </button>
+          {user?.role !== 'member' && (
+            <button
+              onClick={() => { setActiveTab('subscribers'); setSelectedKuriId(null); }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
+                activeTab === 'subscribers'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/10 glow-indigo'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
+              }`}
+            >
+              <Users className="h-4.5 w-4.5" />
+              Subscribers Pool
+            </button>
+          )}
 
           <div className="hidden lg:block mt-8 p-4 rounded-2xl bg-zinc-900/30 border border-emerald-500/20 text-left space-y-2 shadow-lg shadow-emerald-500/5">
             <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-400 uppercase tracking-widest">
@@ -1752,14 +1687,14 @@ export default function Home() {
           )}
 
           {/* TAB 3: GLOBAL SUBSCRIBERS POOL */}
-          {activeTab === 'subscribers' && (
+          {activeTab === 'subscribers' && user?.role === 'admin' && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-bold text-white tracking-tight">Subscribers registry pool</h2>
                   <p className="text-xs text-zinc-400 mt-0.5">Manage global contact lists and enrolled active schemes</p>
                 </div>
-                {user?.role !== 'member' && (
+                {user?.role === 'admin' && (
                   <button onClick={() => setIsSubscriberModalOpen(true)} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
                     <Plus className="h-4 w-4" /> Register New Subscriber
                   </button>
@@ -1805,91 +1740,6 @@ export default function Home() {
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: CALCULATOR / INVESTMENT SIMULATOR */}
-          {activeTab === 'calculator' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">ROI Chit Fund Simulator</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">Model compound chitty auctions, estimate net dividend returns and compute IRR yields</p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="p-6 rounded-2xl glass-panel space-y-5">
-                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2 font-mono"><Calculator className="h-4.5 w-4.5 text-indigo-400" />Simulation Parameters</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400"><label>Chit Value Pool</label><span className="text-white">₹{Number(simChitAmount).toLocaleString('en-IN')}</span></div>
-                    <input type="range" min="50000" max="2000000" step="50000" value={simChitAmount} onChange={(e) => setSimChitAmount(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono"><label>Duration (Months)</label><span className="text-white">{simMonths} Months</span></div>
-                    <input type="range" min="5" max="50" step="5" value={simMonths} onChange={(e) => setSimMonths(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono"><label>Foreman Commission</label><span className="text-white">{simCommission}%</span></div>
-                    <input type="range" min="0" max="10" step="1" value={simCommission} onChange={(e) => setSimCommission(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono"><label>Expected Average Bid Discount</label><span className="text-white">{simAvgDiscount}%</span></div>
-                    <input type="range" min="5" max="40" step="2" value={simAvgDiscount} onChange={(e) => setSimAvgDiscount(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
-                  </div>
-                  <div className="pt-3 border-t border-zinc-800/80 text-[11px] text-zinc-500 leading-normal flex items-start gap-2">
-                    <Info className="h-4 w-4 text-zinc-400 shrink-0" />
-                    <span>Estimates are calculated using standard Indian chitty formulas. Bidding discounts are modeled to decrease dynamically month-over-month.</span>
-                  </div>
-                </div>
-
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block font-mono">Estimated Investment</span>
-                      <h4 className="text-lg font-bold text-white mt-1 font-mono">₹{simulationSchedule.totalPaid.toLocaleString('en-IN')}</h4>
-                      <span className="text-[10px] text-zinc-500 font-semibold block mt-0.5">Base: ₹{simChitAmount.toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block font-mono">Total Dividends Earned</span>
-                      <h4 className="text-lg font-bold text-emerald-400 mt-1 font-mono">₹{simulationSchedule.totalDividendsEarned.toLocaleString('en-IN')}</h4>
-                      <span className="text-[10px] text-zinc-500 font-semibold block mt-0.5">Average: ₹{simulationSchedule.avgInstallment.toLocaleString('en-IN')}/mo</span>
-                    </div>
-                    <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block font-mono">Net Yield ROI</span>
-                      <h4 className="text-lg font-bold text-indigo-400 mt-1 font-mono">+{simulationSchedule.returnRatePct}%</h4>
-                      <span className="text-[10px] text-zinc-500 font-semibold block mt-0.5">Profit: ₹{simulationSchedule.netReturn.toLocaleString('en-IN')}</span>
-                    </div>
-                  </div>
-
-                  <div className="p-6 rounded-2xl glass-panel space-y-4">
-                    <h3 className="text-sm font-bold text-white tracking-tight">Month-by-Month Projected Schedule</h3>
-                    <div className="overflow-x-auto max-h-[300px] overflow-y-auto border border-zinc-800 rounded-xl pr-1">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-zinc-900/80 border-b border-zinc-800 text-[10px] uppercase font-bold text-zinc-500">
-                            <th className="py-2.5 px-4 text-center">Month</th>
-                            <th className="py-2.5 px-4 text-center">Discount Bid</th>
-                            <th className="py-2.5 px-4 text-right">Dividend Earned</th>
-                            <th className="py-2.5 px-4 text-right">Net Payable</th>
-                            <th className="py-2.5 px-4 text-right">Prized Payout Option</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-900 font-medium text-zinc-300 font-mono">
-                          {simulationSchedule.schedule.map((row) => (
-                            <tr key={row.month} className="hover:bg-zinc-900/20 transition-colors">
-                              <td className="py-2.5 px-4 text-center text-zinc-400 font-bold">Month {row.month}</td>
-                              <td className="py-2.5 px-4 text-center font-semibold text-zinc-400">{row.discountPct}%</td>
-                              <td className="py-2.5 px-4 text-right text-emerald-400">+₹{row.dividendEarned.toLocaleString('en-IN')}</td>
-                              <td className="py-2.5 px-4 text-right text-white">₹{row.netInstallment.toLocaleString('en-IN')}</td>
-                              <td className="py-2.5 px-4 text-right font-bold text-indigo-400">₹{row.prizedPayout.toLocaleString('en-IN')}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-
               </div>
             </div>
           )}
