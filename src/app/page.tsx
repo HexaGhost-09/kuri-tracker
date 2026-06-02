@@ -102,6 +102,7 @@ export default function Home() {
   const [newKuriTotalValue, setNewKuriTotalValue] = useState(500000);
   const [newKuriDuration, setNewKuriDuration] = useState(10);
   const [newKuriCommission, setNewKuriCommission] = useState(5);
+  const [isCommissionEnabled, setIsCommissionEnabled] = useState(true);
   const [newKuriStartDate, setNewKuriStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedEnrollSubscribers, setSelectedEnrollSubscribers] = useState<string[]>([]);
   
@@ -452,7 +453,7 @@ export default function Home() {
     
     const duration = Number(newKuriDuration);
     const totalVal = Number(newKuriTotalValue);
-    const commissionPct = Number(newKuriCommission);
+    const commissionPct = isCommissionEnabled ? Number(newKuriCommission) : 0;
     const installmentAmt = totalVal / duration;
     const kuriId = `kuri-${Date.now()}`;
     
@@ -494,6 +495,7 @@ export default function Home() {
     setNewKuriTotalValue(500000);
     setNewKuriDuration(10);
     setNewKuriCommission(5);
+    setIsCommissionEnabled(true);
     setSelectedEnrollSubscribers([]);
     setIsKuriModalOpen(false);
     setSelectedKuriId(kuriId); 
@@ -1500,12 +1502,14 @@ export default function Home() {
                       <h2 className="text-xl font-bold text-white tracking-tight">Active Kuri Schemes</h2>
                       <p className="text-xs text-zinc-400 mt-0.5">Manage details, auctions, and members of active chit funds</p>
                     </div>
-                    <button
-                      onClick={() => setIsKuriModalOpen(true)}
-                      className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2"
-                    >
-                      <Plus className="h-4 w-4" /> Start New Scheme
-                    </button>
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => setIsKuriModalOpen(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" /> Start New Scheme
+                      </button>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1787,7 +1791,7 @@ export default function Home() {
       </main>
 
       {/* --- MODAL 1: CREATE KURI SCHEME --- */}
-      {isKuriModalOpen && (
+      {isKuriModalOpen && user?.role === 'admin' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
           <div className="w-full max-w-xl rounded-2xl glass-panel p-6 space-y-6 relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsKuriModalOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"><X className="h-5 w-5" /></button>
@@ -1813,8 +1817,37 @@ export default function Home() {
                   <input type="number" required min="2" max="60" value={newKuriDuration} onChange={(e) => setNewKuriDuration(Number(e.target.value))} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-400">Commission (%)</label>
-                  <input type="number" required min="0" max="15" value={newKuriCommission} onChange={(e) => setNewKuriCommission(Number(e.target.value))} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-zinc-400">Commission (%)</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCommissionEnabled(!isCommissionEnabled);
+                        if (isCommissionEnabled) {
+                          setNewKuriCommission(0);
+                        } else {
+                          setNewKuriCommission(5);
+                        }
+                      }}
+                      className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded transition-all leading-none ${
+                        isCommissionEnabled
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                      }`}
+                    >
+                      {isCommissionEnabled ? 'Enabled' : 'Disabled (0%)'}
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    max="15"
+                    disabled={!isCommissionEnabled}
+                    value={isCommissionEnabled ? newKuriCommission : 0}
+                    onChange={(e) => setNewKuriCommission(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 disabled:opacity-50 disabled:bg-zinc-900/40 disabled:cursor-not-allowed"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Start Date</label>
