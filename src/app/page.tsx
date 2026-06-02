@@ -1195,10 +1195,10 @@ export default function Home() {
       <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-6 flex-1 flex flex-col lg:flex-row gap-6">
         
         {/* SIDEBAR TABS */}
-        <nav className="flex lg:flex-col gap-2 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-60 shrink-0 border-b lg:border-b-0 lg:border-r border-zinc-800/80 pr-0 lg:pr-6">
+        <nav className="flex lg:flex-col gap-2 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-60 shrink-0 border-b lg:border-b-0 lg:border-r border-zinc-800/80 pr-0 lg:pr-6 scrollbar-thin">
           <button
             onClick={() => { setActiveTab('dashboard'); setSelectedKuriId(null); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
               activeTab === 'dashboard'
                 ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/10 glow-indigo'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
@@ -1210,7 +1210,7 @@ export default function Home() {
           
           <button
             onClick={() => { setActiveTab('kuries'); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
               activeTab === 'kuries'
                 ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/10 glow-indigo'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
@@ -1222,7 +1222,7 @@ export default function Home() {
 
           <button
             onClick={() => { setActiveTab('subscribers'); setSelectedKuriId(null); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
               activeTab === 'subscribers'
                 ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/10 glow-indigo'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
@@ -1234,7 +1234,7 @@ export default function Home() {
 
           <button
             onClick={() => { setActiveTab('calculator'); setSelectedKuriId(null); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
               activeTab === 'calculator'
                 ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/10 glow-indigo'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
@@ -1641,12 +1641,18 @@ export default function Home() {
                   </div>
 
                   <div className="p-6 rounded-2xl glass-panel space-y-4">
-                    <div>
-                      <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">Interactive Collection Ledger Matrix</h3>
-                      <p className="text-xs text-zinc-400">Click a grey column installment button to mark payment as Paid</p>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">Interactive Collection Ledger Matrix</h3>
+                        <p className="text-xs text-zinc-400">Click a grey column installment button to mark payment as Paid</p>
+                      </div>
+                      <div className="inline-flex lg:hidden items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-900/60 border border-zinc-800 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                        <span>Swipe months horizontally</span>
+                        <span className="animate-bounce">👉</span>
+                      </div>
                     </div>
 
-                    <div className="overflow-x-auto border border-zinc-800 rounded-xl">
+                    <div className="overflow-x-auto border border-zinc-800 rounded-xl scrollbar-thin">
                       <table className="w-full text-left border-collapse whitespace-nowrap">
                         <thead>
                           <tr className="bg-zinc-900/80 border-b border-zinc-800 text-[11px] uppercase tracking-wider text-zinc-500 font-bold">
@@ -1966,7 +1972,7 @@ export default function Home() {
       {/* --- MODAL 2: REGISTER NEW SUBSCRIBER --- */}
       {isSubscriberModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-2xl glass-panel p-6 space-y-6 relative">
+          <div className="w-full max-w-md rounded-2xl glass-panel p-6 space-y-6 relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsSubscriberModalOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"><X className="h-5 w-5" /></button>
             <div>
               <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2"><UserPlus className="h-5 w-5 text-indigo-400" />Register New Subscriber</h3>
@@ -2004,7 +2010,7 @@ export default function Home() {
       {/* --- MODAL 3: RUN AUCTION --- */}
       {isAuctionModalOpen && selectedKuri && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-2xl glass-panel p-6 space-y-6 relative">
+          <div className="w-full max-w-md rounded-2xl glass-panel p-6 space-y-6 relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsAuctionModalOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"><X className="h-5 w-5" /></button>
             <div>
               <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2"><TrendingUp className="h-5 w-5 text-indigo-400" />Conduct Month {selectedKuri.currentMonth} Auction</h3>
