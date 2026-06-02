@@ -34,7 +34,8 @@ import {
   UserCheck,
   Cloud,
   CloudLightning,
-  User
+  User,
+  ArrowLeft
 } from 'lucide-react';
 import { 
   Subscriber, 
@@ -49,6 +50,12 @@ import {
 } from './mockData';
 
 export default function Home() {
+  // --- NAVIGATION STATE ---
+  // landing: Ultra-minimal landing page
+  // auth: Signup or Login card
+  // dashboard: The actual application dashboard
+  const [pageState, setPageState] = useState<'landing' | 'auth' | 'dashboard'>('landing');
+
   // --- STATE ---
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [kuries, setKuries] = useState<Kuri[]>([]);
@@ -71,7 +78,6 @@ export default function Home() {
   }
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-  const [showAuthOverlay, setShowAuthOverlay] = useState(true);
   const [authTab, setAuthTab] = useState<'login' | 'signup'>('login');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -112,7 +118,7 @@ export default function Home() {
   const [simCommission, setSimCommission] = useState(5);
   const [simAvgDiscount, setSimAvgDiscount] = useState(25); 
 
-  // --- AUTH PROFILE CHECK ON MOUNT ---
+  // --- SESSION CHECKING ON MOUNT ---
   useEffect(() => {
     async function checkSession() {
       try {
@@ -121,8 +127,8 @@ export default function Home() {
         
         if (data.user) {
           setUser(data.user);
-          setShowAuthOverlay(false);
           setSyncStatus('syncing');
+          setPageState('dashboard');
           
           // Pull synced state from Neon DB
           const syncRes = await fetch('/api/sync');
@@ -136,7 +142,7 @@ export default function Home() {
             setSyncStatus('synced');
             setLastSynced(new Date().toLocaleTimeString());
           } else {
-            // New account is empty! Hydrate database with our gorgeous default mockup data.
+            // Seeding DB with default chitty data
             await fetch('/api/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -155,42 +161,17 @@ export default function Home() {
             setLastSynced(new Date().toLocaleTimeString());
           }
         } else {
-          // No session found, load from LocalStorage fallback if previously selected skipped mode
-          const skipped = localStorage.getItem('kuriflow_auth_skipped') === 'true';
-          if (skipped) {
-            setShowAuthOverlay(false);
-            loadLocalStorageFallback();
-          }
+          setPageState('landing');
         }
       } catch (err) {
         console.error('Session verify error:', err);
-        loadLocalStorageFallback();
+        setPageState('landing');
       } finally {
         setIsAuthChecking(false);
       }
     }
     checkSession();
   }, []);
-
-  const loadLocalStorageFallback = () => {
-    const storedSubs = localStorage.getItem('kuri_subscribers');
-    const storedKuries = localStorage.getItem('kuri_kuries');
-    const storedAuctions = localStorage.getItem('kuri_auctions');
-    const storedPayments = localStorage.getItem('kuri_payments');
-    
-    if (storedSubs && storedKuries && storedAuctions && storedPayments) {
-      setSubscribers(JSON.parse(storedSubs));
-      setKuries(JSON.parse(storedKuries));
-      setAuctions(JSON.parse(storedAuctions));
-      setPayments(JSON.parse(storedPayments));
-    } else {
-      setSubscribers(DEFAULT_SUBSCRIBERS);
-      setKuries(DEFAULT_KURIES);
-      setAuctions(DEFAULT_AUCTIONS);
-      setPayments(DEFAULT_PAYMENTS);
-    }
-    setSyncStatus('local');
-  };
 
   // --- SAVE & AUTO-SYNC ENGINE ---
   const saveState = async (
@@ -199,19 +180,19 @@ export default function Home() {
     newAuctions: Auction[], 
     newPayments: Payment[]
   ) => {
-    // 1. Instantly update local state for real-time fluid responsiveness
+    // Update local state instantly
     setSubscribers(newSubs);
     setKuries(newKuries);
     setAuctions(newAuctions);
     setPayments(newPayments);
 
-    // 2. Persist to LocalStorage fallback
+    // Save fallback to LocalStorage
     localStorage.setItem('kuri_subscribers', JSON.stringify(newSubs));
     localStorage.setItem('kuri_kuries', JSON.stringify(newKuries));
     localStorage.setItem('kuri_auctions', JSON.stringify(newAuctions));
     localStorage.setItem('kuri_payments', JSON.stringify(newPayments));
 
-    // 3. Auto-sync to Neon DB if logged in
+    // Auto-sync to Neon cloud DB if logged in
     if (user) {
       setSyncStatus('syncing');
       try {
@@ -249,7 +230,6 @@ export default function Home() {
 
     try {
       if (authTab === 'signup') {
-        // Sign Up Flow
         const signupRes = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -261,12 +241,11 @@ export default function Home() {
         });
         
         const signupData = await signupRes.json();
-        
         if (!signupRes.ok) {
           throw new Error(signupData.error || 'Signup failed');
         }
 
-        // Successfully registered! Auto-login them now.
+        // Auto-login
         const loginRes = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -278,39 +257,33 @@ export default function Home() {
 
         const loginData = await loginRes.json();
         if (!loginRes.ok) {
-          throw new Error(loginData.error || 'Auto-login failed after registration');
+          throw new Error(loginData.error || 'Login failed after registration');
         }
 
         setUser(loginData.user);
-        setShowAuthOverlay(false);
         setSyncStatus('syncing');
+        setPageState('dashboard');
         
-        // Auto-seed Neon DB with current local/mock data on new signup
-        const activeSubs = subscribers.length > 0 ? subscribers : DEFAULT_SUBSCRIBERS;
-        const activeKuries = kuries.length > 0 ? kuries : DEFAULT_KURIES;
-        const activeAuctions = auctions.length > 0 ? auctions : DEFAULT_AUCTIONS;
-        const activePayments = payments.length > 0 ? payments : DEFAULT_PAYMENTS;
-        
+        // Seed new Neon account
         await fetch('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            subscribers: activeSubs,
-            kuries: activeKuries,
-            auctions: activeAuctions,
-            payments: activePayments
+            subscribers: DEFAULT_SUBSCRIBERS,
+            kuries: DEFAULT_KURIES,
+            auctions: DEFAULT_AUCTIONS,
+            payments: DEFAULT_PAYMENTS
           })
         });
         
-        setSubscribers(activeSubs);
-        setKuries(activeKuries);
-        setAuctions(activeAuctions);
-        setPayments(activePayments);
+        setSubscribers(DEFAULT_SUBSCRIBERS);
+        setKuries(DEFAULT_KURIES);
+        setAuctions(DEFAULT_AUCTIONS);
+        setPayments(DEFAULT_PAYMENTS);
         setSyncStatus('synced');
         setLastSynced(new Date().toLocaleTimeString());
 
       } else {
-        // Login Flow
         const loginRes = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -326,8 +299,8 @@ export default function Home() {
         }
 
         setUser(loginData.user);
-        setShowAuthOverlay(false);
         setSyncStatus('syncing');
+        setPageState('dashboard');
 
         // Fetch user data from Neon DB
         const syncRes = await fetch('/api/sync');
@@ -339,26 +312,21 @@ export default function Home() {
           setAuctions(syncData.auctions);
           setPayments(syncData.payments);
         } else {
-          // Empty account! Seed Neon with their current client data (mockup or local custom edits)
-          const activeSubs = subscribers.length > 0 ? subscribers : DEFAULT_SUBSCRIBERS;
-          const activeKuries = kuries.length > 0 ? kuries : DEFAULT_KURIES;
-          const activeAuctions = auctions.length > 0 ? auctions : DEFAULT_AUCTIONS;
-          const activePayments = payments.length > 0 ? payments : DEFAULT_PAYMENTS;
-
+          // Empty account! Seed Neon with chitty data
           await fetch('/api/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              subscribers: activeSubs,
-              kuries: activeKuries,
-              auctions: activeAuctions,
-              payments: activePayments
+              subscribers: DEFAULT_SUBSCRIBERS,
+              kuries: DEFAULT_KURIES,
+              auctions: DEFAULT_AUCTIONS,
+              payments: DEFAULT_PAYMENTS
             })
           });
-          setSubscribers(activeSubs);
-          setKuries(activeKuries);
-          setAuctions(activeAuctions);
-          setPayments(activePayments);
+          setSubscribers(DEFAULT_SUBSCRIBERS);
+          setKuries(DEFAULT_KURIES);
+          setAuctions(DEFAULT_AUCTIONS);
+          setPayments(DEFAULT_PAYMENTS);
         }
         
         setSyncStatus('synced');
@@ -376,31 +344,22 @@ export default function Home() {
       try {
         await fetch('/api/auth/logout', { method: 'POST' });
         setUser(null);
-        localStorage.removeItem('kuriflow_auth_skipped');
-        setShowAuthOverlay(true);
+        setPageState('landing');
         setSyncStatus('local');
-        // Reset state to defaults
-        setSubscribers(DEFAULT_SUBSCRIBERS);
-        setKuries(DEFAULT_KURIES);
-        setAuctions(DEFAULT_AUCTIONS);
-        setPayments(DEFAULT_PAYMENTS);
+        setSubscribers([]);
+        setKuries([]);
+        setAuctions([]);
+        setPayments([]);
       } catch (err) {
         console.error('Logout error:', err);
       }
     }
   };
 
-  const handleSkipAuth = () => {
-    localStorage.setItem('kuriflow_auth_skipped', 'true');
-    setShowAuthOverlay(false);
-    loadLocalStorageFallback();
-  };
-
   // --- COMPUTED DASHBOARD METRICS ---
   const dashboardStats = useMemo(() => {
     const totalFUM = kuries.reduce((sum, k) => sum + Number(k.totalValue), 0);
     const activeKuriesCount = kuries.filter(k => k.status === 'active').length;
-    
     const totalDividends = auctions.reduce((sum, a) => sum + (Number(a.discount) - Number(a.commission)), 0);
     
     const totalPaymentsCount = payments.length;
@@ -409,7 +368,6 @@ export default function Home() {
     
     const pendingPayments = payments.filter(p => p.status === 'pending');
     const totalPending = pendingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    
     const totalForemanCommission = auctions.reduce((sum, a) => sum + Number(a.commission), 0);
 
     return {
@@ -662,7 +620,6 @@ export default function Home() {
     
     const avgDiscountAmt = amount * (simAvgDiscount / 100);
     const totalAvailDividends = avgDiscountAmt - commission;
-    const avgMonthlyDividend = totalAvailDividends / months;
     
     let totalPaid = 0;
     const schedule = [];
@@ -783,7 +740,7 @@ export default function Home() {
     );
   }, [subscribers, subSearchQuery]);
 
-  // --- LEDGER MATRIX COMPUTATION ---
+  // --- LEDGER MATRIX ---
   const ledgerData = useMemo(() => {
     if (!selectedKuri) return { months: [], rows: [] };
     
@@ -791,8 +748,8 @@ export default function Home() {
     
     const rows = selectedKuri.subscribers.map(ks => {
       const sub = subscribers.find(s => s.id === ks.subscriberId);
-      
       const monthlyPaymentsMap: { [key: number]: Payment } = {};
+      
       payments
         .filter(p => p.kuriId === selectedKuri.id && p.subscriberId === ks.subscriberId)
         .forEach(p => {
@@ -839,153 +796,241 @@ export default function Home() {
   // --- SESSION CHECKING SCREEN ---
   if (isAuthChecking) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[80vh] gap-4">
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[80vh] gap-4 bg-zinc-950 text-white">
         <div className="h-10 w-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
         <p className="text-sm text-zinc-400 font-semibold tracking-wide">Syncing KuriFlow Authenticator...</p>
       </div>
     );
   }
 
-  return (
-    <div className="flex-1 flex flex-col pb-16">
-      
-      {/* AUTHENTICATION OVERLAY MODAL */}
-      {showAuthOverlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/90 backdrop-blur-lg">
-          <div className="w-full max-w-md rounded-2xl glass-panel p-8 space-y-6 relative border border-white/10 glow-indigo">
+  // ==========================================
+  // --- STATE 1: ULTRA-MINIMAL LANDING PAGE ---
+  // ==========================================
+  if (pageState === 'landing') {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex flex-col justify-between relative overflow-hidden">
+        
+        {/* Glow ambient background elements */}
+        <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none z-0" />
+        
+        {/* Simple minimal header */}
+        <header className="w-full max-w-7xl mx-auto py-8 px-6 md:px-8 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-indigo-500/10 p-[1px] flex items-center justify-center border border-indigo-500/20">
+              <Layers className="h-4.5 w-4.5 text-indigo-400" />
+            </div>
+            <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+              KuriFlow
+            </span>
+          </div>
+        </header>
+
+        {/* Minimal content hero */}
+        <main className="max-w-4xl mx-auto w-full px-6 flex-1 flex flex-col items-center justify-center text-center relative z-10 space-y-8 mt-[-40px]">
+          
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/5 text-indigo-400 border border-indigo-500/15 text-[11px] font-bold tracking-wider uppercase">
+              <Sparkles className="h-3 w-3 animate-pulse" /> Neon Cloud Authentication
+            </div>
             
-            <div className="text-center space-y-2">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-sky-400 p-[1px] flex items-center justify-center mx-auto glow-indigo animate-float">
-                <div className="h-full w-full rounded-[15px] bg-zinc-950 flex items-center justify-center">
-                  <Layers className="h-6 w-6 text-indigo-400" />
-                </div>
+            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight bg-gradient-to-b from-white to-zinc-400 bg-clip-text text-transparent leading-none py-1">
+              Automated Chit Fund & Auction Tracking
+            </h1>
+            
+            <p className="text-zinc-400 text-sm sm:text-lg max-w-2xl mx-auto leading-relaxed">
+              Schedule monthly auctions, distribute dividends instantly, and manage enrolled subscriber ledger matrix. Backed by transactional AWS Neon PostgreSQL synchronization.
+            </p>
+          </div>
+
+          <button
+            onClick={() => { setAuthTab('login'); setPageState('auth'); }}
+            className="px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-lg shadow-indigo-600/15 flex items-center gap-2 group animate-float border border-white/5"
+          >
+            Access Application
+            <ArrowRight className="h-4.5 w-4.5 group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          {/* Simple bullet points */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-12 max-w-3xl w-full">
+            <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800/40 text-left space-y-2">
+              <div className="h-7 w-7 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                <Cloud className="h-4 w-4" />
               </div>
-              <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent mt-3">
-                Welcome to KuriFlow
-              </h2>
-              <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Neon Cloud Chitty Management</p>
+              <h4 className="text-xs font-bold text-white">Neon Cloud Sync</h4>
+              <p className="text-[11px] text-zinc-500 leading-normal">Stateless secure data persistence sandboxed to your credentials.</p>
             </div>
 
-            {/* Tabs selection */}
-            <div className="flex bg-zinc-900/60 p-1 rounded-xl border border-zinc-800/80">
-              <button
-                type="button"
-                onClick={() => { setAuthTab('login'); setAuthError(''); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                  authTab === 'login' 
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAuthTab('signup'); setAuthError(''); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                  authTab === 'signup' 
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                Create Account
-              </button>
+            <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800/40 text-left space-y-2">
+              <div className="h-7 w-7 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                <Calculator className="h-4 w-4" />
+              </div>
+              <h4 className="text-xs font-bold text-white">Compound ROI Sim</h4>
+              <p className="text-[11px] text-zinc-500 leading-normal">Estimate compound chitty returns, monthly yields and net IRR.</p>
             </div>
 
-            {/* Error Message */}
-            {authError && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2.5 text-xs text-rose-400">
-                <AlertCircle className="h-4.5 w-4.5 shrink-0 mt-0.5" />
-                <span className="font-medium leading-relaxed">{authError}</span>
+            <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800/40 text-left space-y-2">
+              <div className="h-7 w-7 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                <Users className="h-4 w-4" />
+              </div>
+              <h4 className="text-xs font-bold text-white">Subscriber Registry</h4>
+              <p className="text-[11px] text-zinc-500 leading-normal">Interactive grid matrix to easily toggle payment collections.</p>
+            </div>
+          </div>
+        </main>
+
+        {/* Minimal Footer */}
+        <footer className="w-full max-w-7xl mx-auto py-8 px-6 text-center text-xs text-zinc-600 relative z-10 border-t border-zinc-900">
+          <p>© {new Date().getFullYear()} KuriFlow. Powered by Neon Authorize. All rights reserved.</p>
+        </footer>
+      </div>
+    );
+  }
+
+  // ===================================
+  // --- STATE 2: SIGN UP / LOGIN CARD ---
+  // ===================================
+  if (pageState === 'auth') {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-4 relative overflow-hidden">
+        
+        {/* Radial backdrop */}
+        <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent pointer-events-none z-0" />
+
+        <div className="w-full max-w-md rounded-2xl glass-panel p-8 space-y-6 relative border border-white/10 z-10 shadow-2xl shadow-indigo-500/5">
+          
+          <button
+            onClick={() => setPageState('landing')}
+            className="absolute top-4 left-4 text-xs font-semibold text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back
+          </button>
+
+          <div className="text-center space-y-2">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-sky-400 p-[1px] flex items-center justify-center mx-auto glow-indigo animate-float">
+              <div className="h-full w-full rounded-[9px] bg-zinc-950 flex items-center justify-center">
+                <Layers className="h-5 w-5 text-indigo-400" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-white mt-3">
+              {authTab === 'login' ? 'Sign In to KuriFlow' : 'Create KuriFlow Account'}
+            </h2>
+            <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Neon PostgreSQL Authenticated</p>
+          </div>
+
+          {/* Toggle Tab */}
+          <div className="flex bg-zinc-900/60 p-1 rounded-xl border border-zinc-800/80">
+            <button
+              type="button"
+              onClick={() => { setAuthTab('login'); setAuthError(''); }}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                authTab === 'login' 
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthTab('signup'); setAuthError(''); }}
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                authTab === 'signup' 
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
+          {/* Error display */}
+          {authError && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-xs text-rose-400">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span className="font-semibold">{authError}</span>
+            </div>
+          )}
+
+          {/* Auth form */}
+          <form onSubmit={handleAuthSubmit} className="space-y-4">
+            {authTab === 'signup' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-400">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ramesh Pillai"
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
             )}
 
-            {/* Auth Form */}
-            <form onSubmit={handleAuthSubmit} className="space-y-4">
-              {authTab === 'signup' && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-400">Full Name</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Ramesh Pillai"
-                      value={authName}
-                      onChange={(e) => setAuthName(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. ramesh@gmail.com"
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. ramesh@gmail.com"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
+                />
               </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Password</label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center justify-center gap-2"
-              >
-                {authLoading ? (
-                  <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                ) : authTab === 'login' ? (
-                  <>
-                    <LogIn className="h-4 w-4" /> Sign In securely
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="h-4 w-4" /> Initialize Account
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-zinc-800/80"></div>
-              <span className="flex-shrink mx-4 text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Or</span>
-              <div className="flex-grow border-t border-zinc-800/80"></div>
             </div>
 
-            {/* Skip Auth Option */}
-            <button
-              onClick={handleSkipAuth}
-              className="w-full py-2 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800/80 transition-colors"
-            >
-              Skip Cloud Sync (Try Offline Demo Mode)
-            </button>
-          </div>
-        </div>
-      )}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400">Password</label>
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
 
-      {/* STICKY HEADER */}
+            <button
+              type="submit"
+              disabled={authLoading}
+              className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-zinc-850 disabled:to-zinc-850 disabled:text-zinc-600 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              {authLoading ? (
+                <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              ) : authTab === 'login' ? (
+                <>
+                  <LogIn className="h-4 w-4" /> Sign In securely
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4" /> Initialize Account
+                </>
+              )}
+            </button>
+          </form>
+
+        </div>
+      </div>
+    );
+  }
+
+  // =====================================
+  // --- STATE 3: THE PRIVATE DASHBOARD ---
+  // =====================================
+  return (
+    <div className="flex-1 flex flex-col pb-16 bg-zinc-950 text-white min-h-screen">
+      
+      {/* HEADER */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/5 py-4 px-6 md:px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -1028,19 +1073,9 @@ export default function Home() {
                 <span>Sync Error</span>
               </div>
             )}
-            {syncStatus === 'local' && (
-              <div 
-                onClick={() => setShowAuthOverlay(true)}
-                className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 cursor-pointer px-3 py-1.5 rounded-lg border border-zinc-800 text-zinc-400 font-semibold"
-                title="Your data is saved locally. Click to Sign Up / Log In for Neon Cloud Sync."
-              >
-                <div className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></div>
-                <span>Offline Demo</span>
-              </div>
-            )}
 
             {/* Profile Sign-out */}
-            {user ? (
+            {user && (
               <div className="flex items-center gap-3 bg-zinc-900/60 pl-3 pr-1 py-1 rounded-xl border border-zinc-800">
                 <div className="flex items-center gap-1.5">
                   <UserCheck className="h-3.5 w-3.5 text-indigo-400" />
@@ -1054,13 +1089,6 @@ export default function Home() {
                   <LogOut className="h-4 w-4" />
                 </button>
               </div>
-            ) : (
-              <button
-                onClick={() => { setAuthTab('login'); setShowAuthOverlay(true); }}
-                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors flex items-center gap-1.5"
-              >
-                <LogIn className="h-3.5 w-3.5" /> Connect Cloud
-              </button>
             )}
           </div>
         </div>
@@ -1119,7 +1147,6 @@ export default function Home() {
             ROI Chitty Simulator
           </button>
 
-          {/* Quick Stats Sidebar Panel */}
           <div className="hidden lg:block mt-8 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/80">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="h-4 w-4 text-indigo-400" />
@@ -1138,7 +1165,7 @@ export default function Home() {
         </nav>
 
         {/* MAIN PANEL CONTENT */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 font-sans">
           
           {/* TAB 1: OVERVIEW DASHBOARD */}
           {activeTab === 'dashboard' && (
@@ -1149,8 +1176,8 @@ export default function Home() {
                 <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                      Welcome to KuriFlow
+                    <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2 animate-float">
+                      Welcome to KuriFlow, {user?.name}!
                       <Sparkles className="h-5 w-5 text-amber-400 animate-pulse" />
                     </h2>
                     <p className="text-zinc-400 text-sm mt-1 max-w-xl">
@@ -1176,14 +1203,12 @@ export default function Home() {
 
               {/* Stats Counters Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                
-                {/* Stat 1 */}
                 <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
                   <div className="absolute top-3 right-3 text-indigo-400/20 group-hover:text-indigo-400/30 transition-colors">
                     <Building className="h-8 w-8" />
                   </div>
                   <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total Value Managed</span>
-                  <h3 className="text-2xl font-bold text-white mt-1.5 tracking-tight">
+                  <h3 className="text-2xl font-bold text-white mt-1.5 tracking-tight font-mono">
                     ₹{dashboardStats.totalFUM.toLocaleString('en-IN')}
                   </h3>
                   <div className="flex items-center gap-1.5 mt-2">
@@ -1193,27 +1218,25 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Stat 2 */}
                 <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
                   <div className="absolute top-3 right-3 text-emerald-400/20 group-hover:text-emerald-400/30 transition-colors">
                     <TrendingUp className="h-8 w-8" />
                   </div>
                   <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total Dividends Distributed</span>
-                  <h3 className="text-2xl font-bold text-emerald-400 mt-1.5 tracking-tight">
+                  <h3 className="text-2xl font-bold text-emerald-400 mt-1.5 tracking-tight font-mono">
                     ₹{dashboardStats.totalDividends.toLocaleString('en-IN')}
                   </h3>
-                  <div className="flex items-center gap-1 mt-2 text-xs text-zinc-400">
-                    <span className="text-emerald-400 font-medium">✨ Sub-yield optimized</span>
+                  <div className="flex items-center gap-1 mt-2 text-xs text-zinc-400 font-medium">
+                    <span className="text-emerald-400">✨ Sub-yield optimized</span>
                   </div>
                 </div>
 
-                {/* Stat 3 */}
                 <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
                   <div className="absolute top-3 right-3 text-amber-500/20 group-hover:text-amber-500/30 transition-colors">
                     <ShieldCheck className="h-8 w-8" />
                   </div>
                   <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Foreman Gross Profit</span>
-                  <h3 className="text-2xl font-bold text-white mt-1.5 tracking-tight">
+                  <h3 className="text-2xl font-bold text-white mt-1.5 tracking-tight font-mono">
                     ₹{dashboardStats.totalForemanCommission.toLocaleString('en-IN')}
                   </h3>
                   <div className="flex items-center gap-1.5 mt-2 text-xs text-zinc-500">
@@ -1221,13 +1244,12 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Stat 4 */}
                 <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
                   <div className="absolute top-3 right-3 text-sky-400/20 group-hover:text-sky-400/30 transition-colors">
                     <CheckCircle className="h-8 w-8" />
                   </div>
                   <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Month Collection Rate</span>
-                  <h3 className="text-2xl font-bold text-sky-400 mt-1.5 tracking-tight">
+                  <h3 className="text-2xl font-bold text-sky-400 mt-1.5 tracking-tight font-mono">
                     {dashboardStats.collectionRate}%
                   </h3>
                   <div className="flex items-center gap-2 mt-2">
@@ -1238,10 +1260,8 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Main Dashboard Panel Split */}
+              {/* Inflow chart split */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* Left Block: Analytics Chart */}
                 <div className="lg:col-span-2 p-6 rounded-2xl glass-panel space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1266,16 +1286,14 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* CUSTOM SVG GRAPH */}
+                  {/* SVG chart */}
                   <div className="w-full overflow-hidden flex items-center justify-center bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/80">
                     <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-auto text-xs">
-                      {/* Grid Lines */}
                       <line x1="40" y1="20" x2={chartWidth - 20} y2="20" stroke="rgba(255,255,255,0.03)" strokeDasharray="3 3" />
                       <line x1="40" y1="60" x2={chartWidth - 20} y2="60" stroke="rgba(255,255,255,0.03)" strokeDasharray="3 3" />
                       <line x1="40" y1="100" x2={chartWidth - 20} y2="100" stroke="rgba(255,255,255,0.03)" strokeDasharray="3 3" />
                       <line x1="40" y1="130" x2={chartWidth - 20} y2="130" stroke="rgba(255,255,255,0.08)" />
 
-                      {/* Render data pillars */}
                       {cashFlowChartData.map((d, i) => {
                         const step = (chartWidth - 80) / (cashFlowChartData.length - 1 || 1);
                         const x = 50 + i * step;
@@ -1283,37 +1301,14 @@ export default function Home() {
                         const colY = 130 - (d.collected / maxVal) * 100;
 
                         return (
-                          <g key={i} className="group">
-                            {/* Expected Pillar (indigo) */}
-                            <rect 
-                              x={x - 6} 
-                              y={expY} 
-                              width="5" 
-                              height={130 - expY} 
-                              fill="rgba(99, 102, 241, 0.45)" 
-                              rx="1.5"
-                              className="transition-all duration-300 hover:fill-indigo-500" 
-                            />
-                            {/* Collected Pillar (emerald) */}
-                            <rect 
-                              x={x} 
-                              y={colY} 
-                              width="5" 
-                              height={130 - colY} 
-                              fill={d.collected === d.expected ? "rgba(16, 185, 129, 0.75)" : "rgba(16, 185, 129, 0.45)"}
-                              rx="1.5"
-                              className="transition-all duration-300 hover:fill-emerald-400" 
-                            />
-                            {/* Month Label */}
-                            <text x={x - 4} y="148" fill="#71717a" fontSize="9" fontWeight="600" textAnchor="middle">
-                              {d.label}
-                            </text>
-                            
+                          <g key={i}>
+                            <rect x={x - 6} y={expY} width="5" height={130 - expY} fill="rgba(99, 102, 241, 0.45)" rx="1.5" className="transition-all duration-300 hover:fill-indigo-500" />
+                            <rect x={x} y={colY} width="5" height={130 - colY} fill={d.collected === d.expected ? "rgba(16, 185, 129, 0.75)" : "rgba(16, 185, 129, 0.45)"} rx="1.5" className="transition-all duration-300 hover:fill-emerald-400" />
+                            <text x={x - 4} y="148" fill="#71717a" fontSize="9" fontWeight="600" textAnchor="middle">{d.label}</text>
                             <title>{`Month ${i+1}: Expected: ₹${d.expected.toLocaleString('en-IN')}, Collected: ₹${d.collected.toLocaleString('en-IN')}`}</title>
                           </g>
                         );
                       })}
-
                       <text x="35" y="25" fill="#71717a" fontSize="8" textAnchor="end">Max</text>
                       <text x="35" y="75" fill="#71717a" fontSize="8" textAnchor="end">Mid</text>
                       <text x="35" y="133" fill="#71717a" fontSize="8" textAnchor="end">0</text>
@@ -1321,7 +1316,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Right Block: Schemes Status */}
                 <div className="p-6 rounded-2xl glass-panel space-y-4 flex flex-col justify-between">
                   <div>
                     <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
@@ -1337,24 +1331,14 @@ export default function Home() {
                       const prizeCount = k.subscribers.filter(s => s.isPrized).length;
                       
                       return (
-                        <div 
-                          key={k.id} 
-                          onClick={() => { setSelectedKuriId(k.id); setActiveTab('kuries'); }}
-                          className="p-3.5 rounded-xl bg-zinc-900/50 hover:bg-zinc-800/80 border border-zinc-800 transition-all cursor-pointer flex flex-col gap-2 group"
-                        >
+                        <div key={k.id} onClick={() => { setSelectedKuriId(k.id); setActiveTab('kuries'); }} className="p-3.5 rounded-xl bg-zinc-900/50 hover:bg-zinc-800/80 border border-zinc-800 transition-all cursor-pointer flex flex-col gap-2 group">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-zinc-300 group-hover:text-indigo-400 transition-colors">
-                              {k.name}
-                            </span>
-                            <span className="text-[10px] text-zinc-500 font-bold">
-                              {k.currentMonth}/{k.durationMonths} Months
-                            </span>
+                            <span className="text-xs font-semibold text-zinc-300 group-hover:text-indigo-400 transition-colors">{k.name}</span>
+                            <span className="text-[10px] text-zinc-500 font-bold">{k.currentMonth}/{k.durationMonths} Months</span>
                           </div>
-                          
                           <div className="w-full bg-zinc-950 rounded-full h-1.5">
                             <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: `${completedPct}%` }}></div>
                           </div>
-
                           <div className="flex items-center justify-between text-[10px] text-zinc-500 font-medium">
                             <span>{prizeCount} prized subscribers</span>
                             <span>{k.subscribers.length - prizeCount} remaining</span>
@@ -1366,7 +1350,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Bottom Block: Recent Transactions */}
+              {/* Transactions logs */}
               <div className="p-6 rounded-2xl glass-panel space-y-4">
                 <div>
                   <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
@@ -1391,13 +1375,9 @@ export default function Home() {
                         <tr key={act.id} className="hover:bg-zinc-900/20 transition-colors">
                           <td className="py-3 pl-2">
                             {act.type === 'auction' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">
-                                Auction Prized
-                              </span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">Auction Prized</span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">
-                                Subscription Contribution
-                              </span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">Subscription Contribution</span>
                             )}
                           </td>
                           <td className="py-3 font-semibold text-zinc-200">
@@ -1407,16 +1387,12 @@ export default function Home() {
                           <td className="py-3 text-zinc-400 font-medium">
                             {act.date ? new Date(act.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Pending'}
                           </td>
-                          <td className="py-3 text-right pr-2 font-mono font-bold text-white">
-                            ₹{act.amount.toLocaleString('en-IN')}
-                          </td>
+                          <td className="py-3 text-right pr-2 font-mono font-bold text-white">₹{act.amount.toLocaleString('en-IN')}</td>
                         </tr>
                       ))}
                       {recentActivities.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="py-8 text-center text-zinc-500">
-                            No activities logged yet. Get started by executing an auction in your active Kuries!
-                          </td>
+                          <td colSpan={4} className="py-8 text-center text-zinc-500">No activities logged yet. Get started by executing an auction!</td>
                         </tr>
                       )}
                     </tbody>
@@ -1430,7 +1406,6 @@ export default function Home() {
           {/* TAB 2: ACTIVE KURIES LIST */}
           {activeTab === 'kuries' && (
             <div className="space-y-6">
-              
               {!selectedKuri ? (
                 <>
                   <div className="flex items-center justify-between">
@@ -1448,30 +1423,19 @@ export default function Home() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {kuries.map(k => {
-                      const prizedCount = k.subscribers.filter(s => s.isPrized).length;
                       const progressPct = Math.round((Number(k.currentMonth) / Number(k.durationMonths)) * 100);
-                      
                       return (
                         <div key={k.id} className="rounded-2xl glass-card p-5 flex flex-col justify-between h-[230px]">
                           <div>
                             <div className="flex justify-between items-start gap-2">
-                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                                Month {k.currentMonth}/{k.durationMonths}
-                              </span>
-                              <span className="text-xs font-semibold text-zinc-500">
-                                ₹{(Number(k.totalValue) / 100000).toFixed(1)}L Total Value
-                              </span>
+                              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Month {k.currentMonth}/{k.durationMonths}</span>
+                              <span className="text-xs font-semibold text-zinc-500">₹{(Number(k.totalValue) / 100000).toFixed(1)}L Total Value</span>
                             </div>
-
-                            <h3 className="text-lg font-bold text-white mt-3 tracking-tight group-hover:text-indigo-400 leading-snug">
-                              {k.name}
-                            </h3>
-                            
+                            <h3 className="text-lg font-bold text-white mt-3 tracking-tight leading-snug">{k.name}</h3>
                             <p className="text-xs text-zinc-400 font-medium mt-2">
                               Installment: <span className="font-bold text-zinc-200">₹{Number(k.installmentAmount).toLocaleString('en-IN')} / month</span>
                             </p>
                           </div>
-
                           <div className="space-y-3.5 mt-4">
                             <div className="space-y-1">
                               <div className="flex justify-between text-[11px] text-zinc-500 font-bold">
@@ -1482,17 +1446,12 @@ export default function Home() {
                                 <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: `${progressPct}%` }}></div>
                               </div>
                             </div>
-
                             <div className="flex items-center justify-between border-t border-zinc-800/80 pt-3">
                               <div className="flex items-center gap-1.5">
                                 <Users className="h-3.5 w-3.5 text-zinc-500" />
                                 <span className="text-xs text-zinc-400 font-semibold">{k.subscribers.length} Members</span>
                               </div>
-                              
-                              <button
-                                onClick={() => setSelectedKuriId(k.id)}
-                                className="flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
-                              >
+                              <button onClick={() => setSelectedKuriId(k.id)} className="flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors">
                                 Manage Ledger
                                 <ChevronRight className="h-3.5 w-3.5" />
                               </button>
@@ -1506,100 +1465,58 @@ export default function Home() {
                       <div className="col-span-full p-12 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/10">
                         <AlertCircle className="h-10 w-10 text-zinc-600 mx-auto mb-3" />
                         <h4 className="font-bold text-zinc-400 text-sm">No schemes configured</h4>
-                        <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
-                          Get started by initializing a new chit fund scheme with custom subscribers!
-                        </p>
-                        <button
-                          onClick={() => setIsKuriModalOpen(true)}
-                          className="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs rounded-xl border border-zinc-700 transition-colors"
-                        >
-                          Create First Scheme
-                        </button>
+                        <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">Get started by initializing a new chit fund scheme!</p>
                       </div>
                     )}
                   </div>
                 </>
               ) : (
                 
-                /* DETAILED KURI LEDGER VIEW */
+                /* DETAILED KURI LEDGER MATRIX VIEW */
                 <div className="space-y-6">
-                  
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800 pb-5">
                     <div>
-                      <button
-                        onClick={() => setSelectedKuriId(null)}
-                        className="text-xs font-semibold text-zinc-500 hover:text-zinc-300 flex items-center gap-1.5 mb-2 transition-colors"
-                      >
-                        ← Back to Schemes
-                      </button>
+                      <button onClick={() => setSelectedKuriId(null)} className="text-xs font-semibold text-zinc-500 hover:text-zinc-300 flex items-center gap-1.5 mb-2 transition-colors">← Back to Schemes</button>
                       <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
                         {selectedKuri.name}
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
-                          selectedKuri.status === 'active' 
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                            : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
-                        }`}>
-                          {selectedKuri.status}
-                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${selectedKuri.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>{selectedKuri.status}</span>
                       </h2>
-                      <p className="text-xs text-zinc-500 font-semibold mt-1">
-                        Scheme started on {new Date(selectedKuri.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                      </p>
+                      <p className="text-xs text-zinc-500 font-semibold mt-1">Scheme started on {new Date(selectedKuri.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                     </div>
 
                     <div className="flex items-center gap-3">
                       {selectedKuri.status === 'active' && (
-                        <button
-                          onClick={openAuctionModal}
-                          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2"
-                        >
+                        <button onClick={openAuctionModal} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
                           <TrendingUp className="h-4.5 w-4.5" /> Run Month {selectedKuri.currentMonth} Auction
                         </button>
                       )}
-                      
-                      <button
-                        onClick={() => handleDeleteKuri(selectedKuri.id)}
-                        className="p-2.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl border border-zinc-800 transition-all"
-                        title="Delete Scheme"
-                      >
-                        <Trash2 className="h-4.5 w-4.5" />
-                      </button>
+                      <button onClick={() => handleDeleteKuri(selectedKuri.id)} className="p-2.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl border border-zinc-800 transition-all" title="Delete Scheme"><Trash2 className="h-4.5 w-4.5" /></button>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Chit Value</span>
-                      <h4 className="text-lg font-bold text-white mt-1">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</h4>
+                      <h4 className="text-lg font-bold text-white mt-1 font-mono">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</h4>
                     </div>
-
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Installment Value</span>
-                      <h4 className="text-lg font-bold text-white mt-1">₹{Number(selectedKuri.installmentAmount).toLocaleString('en-IN')} <span className="text-xs font-normal text-zinc-500">/mo</span></h4>
+                      <h4 className="text-lg font-bold text-white mt-1 font-mono">₹{Number(selectedKuri.installmentAmount).toLocaleString('en-IN')} <span className="text-xs font-normal text-zinc-500">/mo</span></h4>
                     </div>
-
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Total Dividends</span>
-                      <h4 className="text-lg font-bold text-emerald-400 mt-1">
-                        ₹{auctions.filter(a => a.kuriId === selectedKuri.id).reduce((sum, a) => sum + (Number(a.discount) - Number(a.commission)), 0).toLocaleString('en-IN')}
-                      </h4>
+                      <h4 className="text-lg font-bold text-emerald-400 mt-1 font-mono">₹{auctions.filter(a => a.kuriId === selectedKuri.id).reduce((sum, a) => sum + (Number(a.discount) - Number(a.commission)), 0).toLocaleString('en-IN')}</h4>
                     </div>
-
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Milestone Month</span>
-                      <h4 className="text-lg font-bold text-indigo-400 mt-1">{selectedKuri.currentMonth} of {selectedKuri.durationMonths}</h4>
+                      <h4 className="text-lg font-bold text-indigo-400 mt-1 font-mono">{selectedKuri.currentMonth} of {selectedKuri.durationMonths}</h4>
                     </div>
                   </div>
 
                   <div className="p-6 rounded-2xl glass-panel space-y-4">
                     <div>
-                      <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
-                        Interactive Collection Ledger Matrix
-                        <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-bold uppercase">
-                          Click Ledger Cell to Pay
-                        </span>
-                      </h3>
-                      <p className="text-xs text-zinc-400">Monitor collections, trace prized subscribers and record monthly payments instantly.</p>
+                      <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">Interactive Collection Ledger Matrix</h3>
+                      <p className="text-xs text-zinc-400">Click a grey column installment button to mark payment as Paid</p>
                     </div>
 
                     <div className="overflow-x-auto border border-zinc-800 rounded-xl">
@@ -1618,56 +1535,26 @@ export default function Home() {
                             <tr key={row.subscriberId} className="hover:bg-zinc-900/30 transition-colors">
                               <td className="py-3 px-4 font-semibold text-zinc-200 sticky left-0 bg-zinc-950/90 border-r border-zinc-900 z-10">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
-                                    #{row.ticketNumber}
-                                  </span>
+                                  <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">#{row.ticketNumber}</span>
                                   {row.name}
                                 </div>
                               </td>
-
                               <td className="py-3 px-4">
                                 {row.isPrized ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">
-                                    Month {row.prizedMonth} Winning
-                                  </span>
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">Month {row.prizedMonth} Winning</span>
                                 ) : (
                                   <span className="text-xs text-zinc-600 font-medium">Non-Prized</span>
                                 )}
                               </td>
-
                               {ledgerData.months.map(m => {
                                 const pay = row.paymentsMap[m];
-                                if (!pay) {
-                                  return (
-                                    <td key={m} className="py-3 px-4 text-center text-xs text-zinc-700">
-                                      -
-                                    </td>
-                                  );
-                                }
-
+                                if (!pay) return <td key={m} className="py-3 px-4 text-center text-xs text-zinc-700">-</td>;
                                 const isPaid = pay.status === 'paid';
+
                                 return (
-                                  <td 
-                                    key={m} 
-                                    onClick={() => togglePaymentStatus(pay.id)}
-                                    className="py-3 px-4 text-center cursor-pointer select-none transition-all group"
-                                  >
-                                    <div className={`mx-auto w-24 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                                      isPaid 
-                                        ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5' 
-                                        : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:border-indigo-500 hover:text-indigo-400'
-                                    }`}>
-                                      {isPaid ? (
-                                        <>
-                                          <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
-                                          Paid
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Clock className="h-3.5 w-3.5 text-zinc-500 group-hover:text-indigo-400" />
-                                          Pay ₹{Math.round(pay.amount / 1000)}k
-                                        </>
-                                      )}
+                                  <td key={m} onClick={() => togglePaymentStatus(pay.id)} className="py-3 px-4 text-center cursor-pointer select-none transition-all group">
+                                    <div className={`mx-auto w-24 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${isPaid ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5' : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:border-indigo-500 hover:text-indigo-400'}`}>
+                                      {isPaid ? <><CheckCircle className="h-3.5 w-3.5 text-emerald-400" />Paid</> : <><Clock className="h-3.5 w-3.5 text-zinc-500 group-hover:text-indigo-400" />Pay ₹{Math.round(pay.amount / 1000)}k</>}
                                     </div>
                                   </td>
                                 );
@@ -1680,123 +1567,78 @@ export default function Home() {
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    
-                    {/* Log of Auctions */}
                     <div className="p-6 rounded-2xl glass-panel space-y-4">
                       <div>
-                        <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                          <History className="h-4.5 w-4.5 text-indigo-400" />
-                          Historical Auction Logs
-                        </h3>
-                        <p className="text-xs text-zinc-400">Auction discounts, commission deductions, and monthly dividends</p>
+                        <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2"><History className="h-4.5 w-4.5 text-indigo-400" />Historical Auction Logs</h3>
+                        <p className="text-xs text-zinc-400">Auction discounts, foreman commissions and shared dividends</p>
                       </div>
-
                       <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-2">
                         {auctions.filter(a => a.kuriId === selectedKuri.id).map(a => {
                           const winner = subscribers.find(s => s.id === a.winningSubscriberId);
-                          
                           return (
                             <div key={a.id} className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/80 flex items-center justify-between gap-4">
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded animate-float">
-                                    Month {a.month}
-                                  </span>
-                                  <span className="text-sm font-bold text-zinc-200">
-                                    {winner?.name || 'Unknown'}
-                                  </span>
+                                  <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">Month {a.month}</span>
+                                  <span className="text-sm font-bold text-zinc-200">{winner?.name || 'Unknown'}</span>
                                 </div>
-                                <p className="text-xs text-zinc-400 mt-1 font-medium font-mono">
-                                  Dividend per member: <span className="text-emerald-400 font-bold">₹{Number(a.dividendPerMember).toLocaleString('en-IN')}</span>
-                                </p>
+                                <p className="text-xs text-zinc-400 mt-1 font-medium font-mono">Dividend: <span className="text-emerald-400 font-bold">₹{Number(a.dividendPerMember).toLocaleString('en-IN')}</span></p>
                               </div>
-
                               <div className="text-right">
                                 <span className="text-xs text-zinc-500 font-semibold block">Prized Payout</span>
-                                <span className="text-sm font-extrabold text-white font-mono">
-                                  ₹{Number(a.winningBid).toLocaleString('en-IN')}
-                                </span>
+                                <span className="text-sm font-extrabold text-white font-mono">₹{Number(a.winningBid).toLocaleString('en-IN')}</span>
                               </div>
                             </div>
                           );
                         })}
-
                         {auctions.filter(a => a.kuriId === selectedKuri.id).length === 0 && (
-                          <div className="py-8 text-center text-zinc-500 text-xs">
-                            No auctions have been conducted yet. Mark the first month's prized subscriber above.
-                          </div>
+                          <div className="py-8 text-center text-zinc-500 text-xs">No auctions have been conducted yet. Click button above to execute auction.</div>
                         )}
                       </div>
                     </div>
 
-                    {/* Subscriber registry in active Kuri */}
                     <div className="p-6 rounded-2xl glass-panel space-y-4">
                       <div>
-                        <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                          <Users className="h-4.5 w-4.5 text-indigo-400" />
-                          Enrolled Subscriber Registry
-                        </h3>
+                        <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2"><Users className="h-4.5 w-4.5 text-indigo-400" />Enrolled Subscriber Registry</h3>
                         <p className="text-xs text-zinc-400">List of subscribers participating in this active scheme</p>
                       </div>
-
                       <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-2">
                         {selectedKuri.subscribers.map(ks => {
                           const sub = subscribers.find(s => s.id === ks.subscriberId);
                           if (!sub) return null;
-                          
                           return (
                             <div key={ks.subscriberId} className="p-3.5 rounded-xl bg-zinc-900/30 border border-zinc-800/80 flex items-center justify-between gap-4">
                               <div className="flex items-center gap-3">
-                                <div className="h-9 w-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 text-xs font-bold font-mono">
-                                  #{ks.ticketNumber}
-                                </div>
+                                <div className="h-9 w-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 text-xs font-bold font-mono">#{ks.ticketNumber}</div>
                                 <div>
                                   <h4 className="text-sm font-bold text-white">{sub.name}</h4>
-                                  <span className="text-[10.5px] text-zinc-500 font-medium flex items-center gap-2">
-                                    <Phone className="h-3 w-3" /> {sub.phone}
-                                  </span>
+                                  <span className="text-[10.5px] text-zinc-500 font-medium flex items-center gap-2"><Phone className="h-3 w-3" /> {sub.phone}</span>
                                 </div>
                               </div>
-
                               <div>
-                                {ks.isPrized ? (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                    Prized (M{ks.prizedMonth})
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                                    Active Subscriber
-                                  </span>
-                                )}
+                                {ks.isPrized ? <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Prized (M{ks.prizedMonth})</span> : <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Active Subscriber</span>}
                               </div>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-
                   </div>
 
                 </div>
               )}
-
             </div>
           )}
 
           {/* TAB 3: GLOBAL SUBSCRIBERS POOL */}
           {activeTab === 'subscribers' && (
             <div className="space-y-6">
-              
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-bold text-white tracking-tight">Subscribers registry pool</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">Manage global contact lists and trace participating schemes</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">Manage global contact lists and enrolled active schemes</p>
                 </div>
-                
-                <button
-                  onClick={() => setIsSubscriberModalOpen(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2"
-                >
+                <button onClick={() => setIsSubscriberModalOpen(true)} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
                   <Plus className="h-4 w-4" /> Register New Subscriber
                 </button>
               </div>
@@ -1804,200 +1646,93 @@ export default function Home() {
               <div className="flex items-center gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/80">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
-                  <input
-                    type="text"
-                    value={subSearchQuery}
-                    onChange={(e) => setSubSearchQuery(e.target.value)}
-                    placeholder="Search by name, phone, email..."
-                    className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                  />
+                  <input type="text" value={subSearchQuery} onChange={(e) => setSubSearchQuery(e.target.value)} placeholder="Search by name, phone, email..." className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors" />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredSubscribersList.map(sub => {
-                  const enrolledSchemes = kuries.filter(k => 
-                    k.subscribers.some(ks => ks.subscriberId === sub.id)
-                  );
-                  
-                  const prizedCount = enrolledSchemes.filter(k => 
-                    k.subscribers.find(ks => ks.subscriberId === sub.id)?.isPrized
-                  ).length;
+                  const enrolledSchemes = kuries.filter(k => k.subscribers.some(ks => ks.subscriberId === sub.id));
+                  const prizedCount = enrolledSchemes.filter(k => k.subscribers.find(ks => ks.subscriberId === sub.id)?.isPrized).length;
 
                   return (
                     <div key={sub.id} className="rounded-2xl glass-card p-5 flex flex-col justify-between h-[210px] relative group">
                       <div>
                         <div className="flex justify-between items-start gap-2">
-                          <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/10 flex items-center justify-center font-bold font-mono">
-                            {sub.name.charAt(0)}
-                          </div>
-                          
-                          <button
-                            onClick={() => handleDeleteSubscriber(sub.id)}
-                            className="p-1.5 text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                            title="Delete Subscriber"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/10 flex items-center justify-center font-bold font-mono">{sub.name.charAt(0)}</div>
+                          <button onClick={() => handleDeleteSubscriber(sub.id)} className="p-1.5 text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Delete"><Trash2 className="h-4 w-4" /></button>
                         </div>
-
-                        <h3 className="text-base font-bold text-white mt-3.5 tracking-tight font-sans">
-                          {sub.name}
-                        </h3>
-
+                        <h3 className="text-base font-bold text-white mt-3.5 tracking-tight">{sub.name}</h3>
                         <div className="mt-2 space-y-1 text-xs text-zinc-500 font-medium font-mono">
-                          <span className="flex items-center gap-1.5">
-                            <Phone className="h-3 w-3" /> {sub.phone}
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <Mail className="h-3 w-3" /> {sub.email}
-                          </span>
+                          <span className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> {sub.phone}</span>
+                          <span className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> {sub.email}</span>
                         </div>
                       </div>
-
                       <div className="flex items-center justify-between border-t border-zinc-800/80 pt-3.5 mt-4">
-                        <div className="text-[11px] text-zinc-400">
-                          Enrolled: <span className="font-bold text-white">{enrolledSchemes.length} Schemes</span>
-                        </div>
-
-                        <div className="text-[11px] text-zinc-500 font-bold font-mono">
-                          {prizedCount} Prized Bids
-                        </div>
+                        <div className="text-[11px] text-zinc-400">Enrolled: <span className="font-bold text-white">{enrolledSchemes.length} Schemes</span></div>
+                        <div className="text-[11px] text-zinc-500 font-bold font-mono">{prizedCount} Prized Bids</div>
                       </div>
                     </div>
                   );
                 })}
-
-                {filteredSubscribersList.length === 0 && (
-                  <div className="col-span-full p-12 text-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/10">
-                    <AlertCircle className="h-10 w-10 text-zinc-600 mx-auto mb-3" />
-                    <h4 className="font-bold text-zinc-400 text-sm">No subscribers found</h4>
-                    <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
-                      Create new subscriber records to enroll them in active schemes.
-                    </p>
-                  </div>
-                )}
               </div>
-
             </div>
           )}
 
-          {/* TAB 4: CHIT FUND CALCULATOR / INVESTMENT SIMULATOR */}
+          {/* TAB 4: CALCULATOR / INVESTMENT SIMULATOR */}
           {activeTab === 'calculator' && (
             <div className="space-y-6">
-              
               <div>
                 <h2 className="text-xl font-bold text-white tracking-tight">ROI Chit Fund Simulator</h2>
                 <p className="text-xs text-zinc-400 mt-0.5">Model compound chitty auctions, estimate net dividend returns and compute IRR yields</p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
                 <div className="p-6 rounded-2xl glass-panel space-y-5">
-                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2 font-mono">
-                    <Calculator className="h-4.5 w-4.5 text-indigo-400" />
-                    Simulation Parameters
-                  </h3>
-
+                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2 font-mono"><Calculator className="h-4.5 w-4.5 text-indigo-400" />Simulation Parameters</h3>
                   <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400">
-                      <label>Chit Value Pool</label>
-                      <span className="text-white">₹{Number(simChitAmount).toLocaleString('en-IN')}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="50000"
-                      max="2000000"
-                      step="50000"
-                      value={simChitAmount}
-                      onChange={(e) => setSimChitAmount(Number(e.target.value))}
-                      className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer"
-                    />
+                    <div className="flex justify-between text-xs font-semibold text-zinc-400"><label>Chit Value Pool</label><span className="text-white">₹{Number(simChitAmount).toLocaleString('en-IN')}</span></div>
+                    <input type="range" min="50000" max="2000000" step="50000" value={simChitAmount} onChange={(e) => setSimChitAmount(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
                   </div>
-
                   <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono">
-                      <label>Duration (Months/Members)</label>
-                      <span className="text-white">{simMonths} Months</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="5"
-                      max="50"
-                      step="5"
-                      value={simMonths}
-                      onChange={(e) => setSimMonths(Number(e.target.value))}
-                      className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer"
-                    />
+                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono"><label>Duration (Months)</label><span className="text-white">{simMonths} Months</span></div>
+                    <input type="range" min="5" max="50" step="5" value={simMonths} onChange={(e) => setSimMonths(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
                   </div>
-
                   <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono">
-                      <label>Foreman Commission</label>
-                      <span className="text-white">{simCommission}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="2"
-                      max="10"
-                      step="1"
-                      value={simCommission}
-                      onChange={(e) => setSimCommission(Number(e.target.value))}
-                      className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer"
-                    />
+                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono"><label>Foreman Commission</label><span className="text-white">{simCommission}%</span></div>
+                    <input type="range" min="2" max="10" step="1" value={simCommission} onChange={(e) => setSimCommission(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
                   </div>
-
                   <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono">
-                      <label>Expected Average Bid Discount</label>
-                      <span className="text-white">{simAvgDiscount}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="5"
-                      max="40"
-                      step="2"
-                      value={simAvgDiscount}
-                      onChange={(e) => setSimAvgDiscount(Number(e.target.value))}
-                      className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer"
-                    />
+                    <div className="flex justify-between text-xs font-semibold text-zinc-400 font-mono"><label>Expected Average Bid Discount</label><span className="text-white">{simAvgDiscount}%</span></div>
+                    <input type="range" min="5" max="40" step="2" value={simAvgDiscount} onChange={(e) => setSimAvgDiscount(Number(e.target.value))} className="w-full accent-indigo-500 bg-zinc-850 h-1.5 rounded-lg appearance-none cursor-pointer" />
                   </div>
-
                   <div className="pt-3 border-t border-zinc-800/80 text-[11px] text-zinc-500 leading-normal flex items-start gap-2">
                     <Info className="h-4 w-4 text-zinc-400 shrink-0" />
-                    <span>
-                      Estimates are calculated using standard Indian chitty formulas. Bidding discounts are modeled to decrease dynamically month-over-month.
-                    </span>
+                    <span>Estimates are calculated using standard Indian chitty formulas. Bidding discounts are modeled to decrease dynamically month-over-month.</span>
                   </div>
                 </div>
 
                 <div className="lg:col-span-2 space-y-6">
-                  
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    
                     <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block font-mono">Estimated Total Investment</span>
-                      <h4 className="text-lg font-bold text-white mt-1">₹{simulationSchedule.totalPaid.toLocaleString('en-IN')}</h4>
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block font-mono">Estimated Investment</span>
+                      <h4 className="text-lg font-bold text-white mt-1 font-mono">₹{simulationSchedule.totalPaid.toLocaleString('en-IN')}</h4>
                       <span className="text-[10px] text-zinc-500 font-semibold block mt-0.5">Base: ₹{simChitAmount.toLocaleString('en-IN')}</span>
                     </div>
-
                     <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800">
                       <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block font-mono">Total Dividends Earned</span>
                       <h4 className="text-lg font-bold text-emerald-400 mt-1 font-mono">₹{simulationSchedule.totalDividendsEarned.toLocaleString('en-IN')}</h4>
                       <span className="text-[10px] text-zinc-500 font-semibold block mt-0.5">Average: ₹{simulationSchedule.avgInstallment.toLocaleString('en-IN')}/mo</span>
                     </div>
-
                     <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800">
                       <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block font-mono">Net Yield ROI</span>
                       <h4 className="text-lg font-bold text-indigo-400 mt-1 font-mono">+{simulationSchedule.returnRatePct}%</h4>
                       <span className="text-[10px] text-zinc-500 font-semibold block mt-0.5">Profit: ₹{simulationSchedule.netReturn.toLocaleString('en-IN')}</span>
                     </div>
-
                   </div>
 
                   <div className="p-6 rounded-2xl glass-panel space-y-4">
                     <h3 className="text-sm font-bold text-white tracking-tight">Month-by-Month Projected Schedule</h3>
-                    
                     <div className="overflow-x-auto max-h-[300px] overflow-y-auto border border-zinc-800 rounded-xl pr-1">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
@@ -2023,11 +1758,9 @@ export default function Home() {
                       </table>
                     </div>
                   </div>
-
                 </div>
 
               </div>
-
             </div>
           )}
 
@@ -2038,112 +1771,45 @@ export default function Home() {
       {isKuriModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
           <div className="w-full max-w-xl rounded-2xl glass-panel p-6 space-y-6 relative max-h-[90vh] overflow-y-auto">
-            
-            <button
-              onClick={() => setIsKuriModalOpen(false)}
-              className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
+            <button onClick={() => setIsKuriModalOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"><X className="h-5 w-5" /></button>
             <div>
-              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-indigo-400" />
-                Initialize New Kuri Scheme
-              </h3>
+              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2"><Sparkles className="h-5 w-5 text-indigo-400" />Initialize New Kuri Scheme</h3>
               <p className="text-xs text-zinc-400 mt-1 font-semibold">Configure installments, duration, and enroll subscribers</p>
             </div>
-
             <form onSubmit={handleCreateKuri} className="space-y-4">
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Kuri Scheme Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={newKuriName}
-                    onChange={(e) => setNewKuriName(e.target.value)}
-                    placeholder="e.g. Royal Gold 5L"
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
-                  />
+                  <input type="text" required value={newKuriName} onChange={(e) => setNewKuriName(e.target.value)} placeholder="e.g. Royal Gold 5L" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Total Pool Value (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    value={newKuriTotalValue}
-                    onChange={(e) => setNewKuriTotalValue(Number(e.target.value))}
-                    placeholder="500000"
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500"
-                  />
+                  <input type="number" required value={newKuriTotalValue} onChange={(e) => setNewKuriTotalValue(Number(e.target.value))} placeholder="500000" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Duration (Months)</label>
-                  <input
-                    type="number"
-                    required
-                    min="2"
-                    max="60"
-                    value={newKuriDuration}
-                    onChange={(e) => setNewKuriDuration(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500"
-                  />
+                  <input type="number" required min="2" max="60" value={newKuriDuration} onChange={(e) => setNewKuriDuration(Number(e.target.value))} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Commission (%)</label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    max="15"
-                    value={newKuriCommission}
-                    onChange={(e) => setNewKuriCommission(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500"
-                  />
+                  <input type="number" required min="1" max="15" value={newKuriCommission} onChange={(e) => setNewKuriCommission(Number(e.target.value))} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Start Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={newKuriStartDate}
-                    onChange={(e) => setNewKuriStartDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500"
-                  />
+                  <input type="date" required value={newKuriStartDate} onChange={(e) => setNewKuriStartDate(e.target.value)} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-semibold text-zinc-400">
-                    Enroll Subscribers ({selectedEnrollSubscribers.length} selected)
-                  </label>
-                  <span className="text-[10px] text-zinc-500 font-bold">
-                    Need exactly {newKuriDuration} subscribers matching duration
-                  </span>
-                </div>
-
+                <div className="flex justify-between items-center"><label className="text-xs font-semibold text-zinc-400">Enroll Subscribers ({selectedEnrollSubscribers.length} selected)</label><span className="text-[10px] text-zinc-500 font-bold">Need exactly {newKuriDuration} subscribers</span></div>
                 <div className="border border-zinc-800 bg-zinc-950/40 rounded-xl p-3.5 max-h-[160px] overflow-y-auto space-y-2">
                   {subscribers.map((sub) => {
                     const isSelected = selectedEnrollSubscribers.includes(sub.id);
                     return (
-                      <div 
-                        key={sub.id}
-                        onClick={() => toggleSubSelect(sub.id)}
-                        className={`p-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${
-                          isSelected 
-                            ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/20' 
-                            : 'bg-zinc-900/30 text-zinc-400 border-zinc-850 hover:bg-zinc-800/20'
-                        }`}
-                      >
+                      <div key={sub.id} onClick={() => toggleSubSelect(sub.id)} className={`p-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${isSelected ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/20' : 'bg-zinc-900/30 text-zinc-400 border-zinc-850 hover:bg-zinc-800/20'}`}>
                         <span>{sub.name}</span>
                         <span className="text-[10px] text-zinc-500 font-medium font-mono">{sub.phone}</span>
                       </div>
@@ -2153,21 +1819,9 @@ export default function Home() {
               </div>
 
               <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsKuriModalOpen(false)}
-                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10"
-                >
-                  Launch Kuri Scheme
-                </button>
+                <button type="button" onClick={() => setIsKuriModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10">Launch Kuri Scheme</button>
               </div>
-
             </form>
           </div>
         </div>
@@ -2177,178 +1831,70 @@ export default function Home() {
       {isSubscriberModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
           <div className="w-full max-w-md rounded-2xl glass-panel p-6 space-y-6 relative">
-            
-            <button
-              onClick={() => setIsSubscriberModalOpen(false)}
-              className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
+            <button onClick={() => setIsSubscriberModalOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"><X className="h-5 w-5" /></button>
             <div>
-              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-indigo-400" />
-                Register New Subscriber
-              </h3>
+              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2"><UserPlus className="h-5 w-5 text-indigo-400" />Register New Subscriber</h3>
               <p className="text-xs text-zinc-400 mt-1">Create a subscriber card to enroll them in schemes.</p>
             </div>
-
             <form onSubmit={handleAddSubscriber} className="space-y-4">
-              
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-zinc-400">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={newSubName}
-                  onChange={(e) => setNewSubName(e.target.value)}
-                  placeholder="e.g. Ramesh Kumar"
-                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
-                />
+                <input type="text" required value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="e.g. Ramesh Kumar" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
               </div>
-
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-zinc-400">Contact Number</label>
-                <input
-                  type="text"
-                  value={newSubPhone}
-                  onChange={(e) => setNewSubPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
-                />
+                <input type="text" value={newSubPhone} onChange={(e) => setNewSubPhone(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
               </div>
-
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-zinc-400">Email Address</label>
-                <input
-                  type="email"
-                  value={newSubEmail}
-                  onChange={(e) => setNewSubEmail(e.target.value)}
-                  placeholder="ramesh@gmail.com"
-                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
-                />
+                <input type="email" value={newSubEmail} onChange={(e) => setNewSubEmail(e.target.value)} placeholder="ramesh@gmail.com" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
               </div>
-
               <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsSubscriberModalOpen(false)}
-                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10"
-                >
-                  Create Record
-                </button>
+                <button type="button" onClick={() => setIsSubscriberModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10">Create Record</button>
               </div>
-
             </form>
           </div>
         </div>
       )}
 
-      {/* --- MODAL 3: RUN AUCTION / BIDDING SESSION --- */}
+      {/* --- MODAL 3: RUN AUCTION --- */}
       {isAuctionModalOpen && selectedKuri && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-md">
           <div className="w-full max-w-md rounded-2xl glass-panel p-6 space-y-6 relative">
-            
-            <button
-              onClick={() => setIsAuctionModalOpen(false)}
-              className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
+            <button onClick={() => setIsAuctionModalOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"><X className="h-5 w-5" /></button>
             <div>
-              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-indigo-400" />
-                Conduct Month {selectedKuri.currentMonth} Auction
-              </h3>
-              <p className="text-xs text-zinc-400 mt-1">
-                Enter winning bid payout accepted by the prized subscriber.
-              </p>
+              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2"><TrendingUp className="h-5 w-5 text-indigo-400" />Conduct Month {selectedKuri.currentMonth} Auction</h3>
+              <p className="text-xs text-zinc-400 mt-1">Enter winning bid payout accepted by prized subscriber.</p>
             </div>
-
             <form onSubmit={handleRunAuction} className="space-y-4">
-              
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-zinc-400">Select Prized Subscriber</label>
-                <select
-                  required
-                  value={auctionWinningSubId}
-                  onChange={(e) => setAuctionWinningSubId(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500"
-                >
-                  {prizedCandidates.map(c => (
-                    <option key={c.id} value={c.id}>
-                      Ticket #{c.ticketNumber} - {c.name}
-                    </option>
-                  ))}
-                  {prizedCandidates.length === 0 && (
-                    <option value="">No remaining active candidates</option>
-                  )}
+                <select required value={auctionWinningSubId} onChange={(e) => setAuctionWinningSubId(e.target.value)} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
+                  {prizedCandidates.map(c => <option key={c.id} value={c.id}>Ticket #{c.ticketNumber} - {c.name}</option>)}
+                  {prizedCandidates.length === 0 && <option value="">No remaining active candidates</option>}
                 </select>
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-zinc-400">
-                  <label>Prize Payout Bid (₹)</label>
-                  <span>Max: ₹{(Number(selectedKuri.totalValue) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent))/100).toLocaleString('en-IN')}</span>
-                </div>
-                <input
-                  type="number"
-                  required
-                  value={auctionWinningBid}
-                  onChange={(e) => setAuctionWinningBid(Number(e.target.value))}
-                  placeholder="e.g. 430000"
-                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500"
-                />
+                <div className="flex justify-between text-xs font-semibold text-zinc-400"><label>Prize Payout Bid (₹)</label><span>Max: ₹{(Number(selectedKuri.totalValue) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent))/100).toLocaleString('en-IN')}</span></div>
+                <input type="number" required value={auctionWinningBid} onChange={(e) => setAuctionWinningBid(Number(e.target.value))} placeholder="e.g. 430000" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
               </div>
 
               <div className="p-3.5 rounded-xl bg-zinc-900/40 border border-zinc-800 space-y-2 text-xs font-mono">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Chit Fund Pool:</span>
-                  <span className="font-bold text-white">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</span>
-                </div>
-                
-                <div className="flex justify-between text-zinc-400">
-                  <span>Foreman Commission:</span>
-                  <span className="font-bold text-white">₹{((Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100).toLocaleString('en-IN')}</span>
-                </div>
-
-                <div className="flex justify-between text-zinc-400">
-                  <span>Total Discount offered:</span>
-                  <span className="font-bold text-white">₹{(Number(selectedKuri.totalValue) - auctionWinningBid).toLocaleString('en-IN')}</span>
-                </div>
-
+                <div className="flex justify-between text-zinc-400"><span>Chit Fund Pool:</span><span className="font-bold text-white">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between text-zinc-400"><span>Foreman Commission:</span><span className="font-bold text-white">₹{((Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100).toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between text-zinc-400"><span>Total Discount:</span><span className="font-bold text-white">₹{(Number(selectedKuri.totalValue) - auctionWinningBid).toLocaleString('en-IN')}</span></div>
                 <div className="flex justify-between border-t border-zinc-850 pt-2 text-zinc-300 font-semibold font-sans">
                   <span>Projected Dividend / member:</span>
-                  <span className="text-emerald-400 font-mono">
-                    ₹{Math.max(0, Math.round(((Number(selectedKuri.totalValue) - auctionWinningBid) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100) / selectedKuri.subscribers.length)).toLocaleString('en-IN')}
-                  </span>
+                  <span className="text-emerald-400 font-mono">₹{Math.max(0, Math.round(((Number(selectedKuri.totalValue) - auctionWinningBid) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100) / selectedKuri.subscribers.length)).toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
               <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsAuctionModalOpen(false)}
-                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={prizedCandidates.length === 0}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10"
-                >
-                  Execute Bid Auction
-                </button>
+                <button type="button" onClick={() => setIsAuctionModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>
+                <button type="submit" disabled={prizedCandidates.length === 0} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10">Execute Bid Auction</button>
               </div>
-
             </form>
           </div>
         </div>
