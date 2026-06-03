@@ -2249,15 +2249,21 @@ export default function Home() {
                               Installment: <span className="font-bold text-zinc-200">₹{Number(k.installmentAmount).toLocaleString('en-IN')} / month</span>
                             </p>
                             {k.schemeUuid && (
-                              <div className="mt-3 flex items-center justify-between gap-2 bg-zinc-950/60 px-2 py-1.5 rounded-lg border border-zinc-800/80">
-                                <span className="text-[10px] text-zinc-500 font-mono select-all truncate max-w-[170px]">{k.schemeUuid}</span>
+                              <div className="mt-3.5 p-2.5 rounded-xl bg-violet-950/20 border border-violet-500/30 flex items-center justify-between gap-3 shadow-sm shadow-violet-500/5">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Layers className="h-4 w-4 text-violet-400 shrink-0" />
+                                  <div className="min-w-0">
+                                    <span className="text-[9px] text-violet-400 font-extrabold uppercase tracking-widest block leading-none mb-0.5">Invite Code</span>
+                                    <span className="text-xs text-zinc-100 font-mono font-bold select-all truncate block max-w-[150px] sm:max-w-[180px]">{k.schemeUuid}</span>
+                                  </div>
+                                </div>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     navigator.clipboard.writeText(k.schemeUuid || '');
                                     alert('Scheme Invite UUID copied to clipboard!');
                                   }}
-                                  className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/15 shrink-0 hover:bg-indigo-500/20"
+                                  className="text-[10px] font-bold text-white bg-violet-600 hover:bg-violet-500 px-3 py-1.5 rounded-lg border border-violet-400/20 shrink-0 shadow-md active:scale-95 transition-all animate-fade-in"
                                 >
                                   Copy ID
                                 </button>
@@ -2310,17 +2316,22 @@ export default function Home() {
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${selectedKuri.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>{selectedKuri.status}</span>
                       </h2>
                       {selectedKuri.schemeUuid && (
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider font-mono">SCHEME UUID:</span>
-                          <span className="text-[11px] font-mono text-zinc-300 select-all">{selectedKuri.schemeUuid}</span>
+                        <div className="mt-3.5 inline-flex items-center gap-3.5 bg-violet-950/20 border border-violet-500/30 p-2.5 rounded-xl shadow-sm shadow-violet-500/5">
+                          <div className="flex items-center gap-2">
+                            <Layers className="h-4.5 w-4.5 text-violet-400 shrink-0" />
+                            <div>
+                              <span className="text-[9px] text-violet-400 font-extrabold uppercase tracking-widest block leading-none mb-0.5">Scheme Invite UUID</span>
+                              <span className="text-xs font-mono font-bold text-zinc-100 select-all block sm:inline">{selectedKuri.schemeUuid}</span>
+                            </div>
+                          </div>
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(selectedKuri.schemeUuid || '');
                               alert('Scheme Invite UUID copied to clipboard!');
                             }}
-                            className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300"
+                            className="text-[10px] font-bold text-white bg-violet-600 hover:bg-violet-500 px-3 py-1.5 rounded-lg border border-violet-400/20 shadow-md active:scale-95 transition-all"
                           >
-                            [Copy]
+                            Copy UUID
                           </button>
                         </div>
                       )}
