@@ -647,7 +647,7 @@ export default function Home() {
   const dashboardStats = useMemo(() => {
     const totalFUM = kuries.reduce((sum, k) => sum + Number(k.totalValue), 0);
     const activeKuriesCount = kuries.filter(k => k.status === 'active').length;
-    const totalDividends = auctions.reduce((sum, a) => sum + (Number(a.discount) - Number(a.commission)), 0);
+    const totalDividends = auctions.reduce((sum, a) => sum + Number(a.discount), 0);
     
     const totalPaymentsCount = payments.length;
     const paidPayments = payments.filter(p => p.status === 'paid');
@@ -655,7 +655,7 @@ export default function Home() {
     
     const pendingPayments = payments.filter(p => p.status === 'pending');
     const totalPending = pendingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const totalForemanCommission = auctions.reduce((sum, a) => sum + Number(a.commission), 0);
+    const totalForemanCommission = 0;
 
     return {
       totalFUM,
@@ -676,27 +676,55 @@ export default function Home() {
 
   // --- FRONTEND ACTION HANDLERS ---
   
-  // Create Subscriber
-  const handleAddSubscriber = (e: React.FormEvent) => {
+  // Create Subscriber directly by UUID
+  const handleAddSubscriber = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSubName.trim()) return;
-    
-    const newSub: Subscriber = {
-      id: `sub-${Date.now()}`,
-      name: newSubName,
-      phone: newSubPhone || '+91 99999 00000',
-      email: newSubEmail || `${newSubName.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
-      memberUuid: newSubMemberUuid.trim() || undefined
-    };
-    
-    const updatedSubs = [...subscribers, newSub];
-    saveState(updatedSubs, kuries, auctions, payments);
-    
-    setNewSubName('');
-    setNewSubPhone('');
-    setNewSubEmail('');
-    setNewSubMemberUuid('');
-    setIsSubscriberModalOpen(false);
+    if (!newSubMemberUuid.trim()) {
+      alert('Please enter a Member UUID.');
+      return;
+    }
+    try {
+      const response = await fetch(`/api/auth/member-by-uuid?uuid=${newSubMemberUuid.trim()}`);
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Invalid Member UUID');
+        return;
+      }
+      const data = await response.json();
+      const member = data.member;
+
+      // Check if subscriber already exists
+      const existingSub = subscribers.find(s => s.memberUuid === member.uuid);
+      if (existingSub) {
+        alert(`Member "${member.name}" is already registered as a subscriber.`);
+        setIsSubscriberModalOpen(false);
+        setNewSubMemberUuid('');
+        return;
+      }
+
+      const newSub: Subscriber = {
+        id: `sub-${Date.now()}`,
+        name: member.name,
+        phone: '+91 99999 00000',
+        email: member.email,
+        memberUuid: member.uuid
+      };
+      const updatedSubs = [...subscribers, newSub];
+
+      let updatedUnlocked = [...unlockedUuids];
+      if (!unlockedUuids.includes(member.uuid)) {
+        updatedUnlocked.push(member.uuid);
+        setUnlockedUuids(updatedUnlocked);
+        localStorage.setItem('kuri_unlocked_uuids', JSON.stringify(updatedUnlocked));
+      }
+
+      saveState(updatedSubs, kuries, auctions, payments);
+      setIsSubscriberModalOpen(false);
+      setNewSubMemberUuid('');
+      alert(`Successfully registered subscriber: ${member.name}`);
+    } catch (err) {
+      alert('Error verifying UUID');
+    }
   };
 
   // Create Kuri
@@ -778,15 +806,9 @@ export default function Home() {
     const currentM = k.currentMonth;
     const totalVal = k.totalValue;
     const bidAmount = Number(auctionWinningBid); 
-    const commission = (totalVal * k.foremanCommissionPercent) / 100;
+    const commission = 0;
     const discount = totalVal - bidAmount;
-    
-    if (discount < commission) {
-      alert(`Discount (${discount}) cannot be less than Foreman Commission (${commission})! Winning bid is too high.`);
-      return;
-    }
-    
-    const totalDividends = discount - commission;
+    const totalDividends = discount;
     const numSubscribers = k.subscribers.length;
     const dividendPerMember = totalDividends / numSubscribers;
     const netInstallment = k.installmentAmount - dividendPerMember;
@@ -1128,9 +1150,8 @@ export default function Home() {
         setLuckyDrawWinner(finalWinner);
         setAuctionWinningSubId(finalWinner.id);
         
-        // Auto-calculate the maximum payout (No discount except foreman commission)
-        const foremanComm = (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100;
-        const maxPayout = Number(selectedKuri.totalValue) - foremanComm;
+        // Auto-calculate the maximum payout (No discount)
+        const maxPayout = Number(selectedKuri.totalValue);
         setAuctionWinningBid(maxPayout);
         setIsDrawing(false);
       }
@@ -1139,8 +1160,7 @@ export default function Home() {
 
   const openAuctionModal = () => {
     if (!selectedKuri) return;
-    const commission = (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100;
-    setAuctionWinningBid(Number(selectedKuri.totalValue) - commission - 10000);
+    setAuctionWinningBid(Number(selectedKuri.totalValue) - 10000);
     setAuctionMode('bidding');
     setLuckyDrawWinner(null);
     if (prizedCandidates.length > 0) {
@@ -1769,15 +1789,15 @@ export default function Home() {
                 </div>
 
                 <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
-                  <div className="absolute top-3 right-3 text-amber-500/20 group-hover:text-amber-500/30 transition-colors">
-                    <ShieldCheck className="h-8 w-8" />
+                  <div className="absolute top-3 right-3 text-indigo-400/20 group-hover:text-indigo-400/30 transition-colors">
+                    <Users className="h-8 w-8" />
                   </div>
-                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Foreman Gross Profit</span>
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Registered Subscribers</span>
                   <h3 className="text-2xl font-bold text-white mt-1.5 tracking-tight font-mono">
-                    ₹{dashboardStats.totalForemanCommission.toLocaleString('en-IN')}
+                    {subscribers.length}
                   </h3>
                   <div className="flex items-center gap-1.5 mt-2 text-xs text-zinc-500">
-                    <span>From {auctions.length} recorded auctions</span>
+                    <span>Active global registry pool</span>
                   </div>
                 </div>
 
@@ -2073,9 +2093,9 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
-                      <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Chit Value</span>
+                      <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Pool Value</span>
                       <h4 className="text-lg font-bold text-white mt-1 font-mono">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</h4>
                     </div>
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
@@ -2084,7 +2104,7 @@ export default function Home() {
                     </div>
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Total Dividends</span>
-                      <h4 className="text-lg font-bold text-emerald-400 mt-1 font-mono">₹{auctions.filter(a => a.kuriId === selectedKuri.id).reduce((sum, a) => sum + (Number(a.discount) - Number(a.commission)), 0).toLocaleString('en-IN')}</h4>
+                      <h4 className="text-lg font-bold text-emerald-400 mt-1 font-mono">₹{auctions.filter(a => a.kuriId === selectedKuri.id).reduce((sum, a) => sum + Number(a.discount), 0).toLocaleString('en-IN')}</h4>
                     </div>
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Milestone Month</span>
@@ -2159,7 +2179,7 @@ export default function Home() {
                     <div className="p-6 rounded-2xl glass-panel space-y-4">
                       <div>
                         <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2"><History className="h-4.5 w-4.5 text-indigo-400" />Historical Auction Logs</h3>
-                        <p className="text-xs text-zinc-400">Auction discounts, foreman commissions and shared dividends</p>
+                        <p className="text-xs text-zinc-400">Auction discounts and shared dividends</p>
                       </div>
                       <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-2">
                         {auctions.filter(a => a.kuriId === selectedKuri.id).map(a => {
@@ -2319,43 +2339,10 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Duration (Months)</label>
                   <input type="number" required min="2" max="60" value={newKuriDuration} onChange={(e) => setNewKuriDuration(Number(e.target.value))} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-semibold text-zinc-400">Commission (%)</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCommissionEnabled(!isCommissionEnabled);
-                        if (isCommissionEnabled) {
-                          setNewKuriCommission(0);
-                        } else {
-                          setNewKuriCommission(5);
-                        }
-                      }}
-                      className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded transition-all leading-none ${
-                        isCommissionEnabled
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-                      }`}
-                    >
-                      {isCommissionEnabled ? 'Enabled' : 'Disabled (0%)'}
-                    </button>
-                  </div>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    max="15"
-                    disabled={!isCommissionEnabled}
-                    value={isCommissionEnabled ? newKuriCommission : 0}
-                    onChange={(e) => setNewKuriCommission(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 disabled:opacity-50 disabled:bg-zinc-900/40 disabled:cursor-not-allowed"
-                  />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Start Date</label>
@@ -2437,96 +2424,29 @@ export default function Home() {
               <p className="text-xs text-zinc-400 mt-1">Provide a registered Member UUID to load and register their subscriber card.</p>
             </div>
             
-            <div className="space-y-4">
+            <form onSubmit={handleAddSubscriber} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-zinc-400">Member UUID</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={newSubMemberUuid} 
-                    onChange={(e) => setNewSubMemberUuid(e.target.value)} 
-                    placeholder="e.g. 1c23a456-7890-bcde-fgh1-23456789abcd" 
-                    className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500 font-mono" 
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!newSubMemberUuid.trim()) return;
-                      try {
-                        const response = await fetch(`/api/auth/member-by-uuid?uuid=${newSubMemberUuid.trim()}`);
-                        if (!response.ok) {
-                          const data = await response.json();
-                          alert(data.error || 'Invalid Member UUID');
-                          return;
-                        }
-                        const data = await response.json();
-                        setNewSubName(data.member.name);
-                        setNewSubEmail(data.member.email);
-                        alert(`Member found: ${data.member.name}. You can now save.`);
-                      } catch (err) {
-                        alert('Error verifying UUID');
-                      }
-                    }}
-                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-all"
-                  >
-                    Verify
-                  </button>
-                </div>
+                <input 
+                  type="text" 
+                  required
+                  value={newSubMemberUuid} 
+                  onChange={(e) => setNewSubMemberUuid(e.target.value)} 
+                  placeholder="e.g. 1c23a456-7890-bcde-fgh1-23456789abcd" 
+                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500 font-mono" 
+                />
               </div>
-
-              {newSubName && (
-                <div className="space-y-4 pt-4 border-t border-zinc-900 animate-fade-in">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-zinc-400">Full Name</label>
-                    <input type="text" disabled value={newSubName} className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-zinc-400" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-zinc-400">Email Address</label>
-                    <input type="email" disabled value={newSubEmail} className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-zinc-400" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-zinc-400">Contact Number</label>
-                    <input type="text" value={newSubPhone} onChange={(e) => setNewSubPhone(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
-                  </div>
-                  
-                  <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
-                    <button type="button" onClick={() => setIsSubscriberModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        const newSub: Subscriber = {
-                          id: `sub-${Date.now()}`,
-                          name: newSubName,
-                          phone: newSubPhone || '+91 99999 00000',
-                          email: newSubEmail,
-                          memberUuid: newSubMemberUuid.trim()
-                        };
-                        const updatedSubs = [...subscribers, newSub];
-                        
-                        let updatedUnlocked = [...unlockedUuids];
-                        if (!unlockedUuids.includes(newSubMemberUuid.trim())) {
-                          updatedUnlocked.push(newSubMemberUuid.trim());
-                          setUnlockedUuids(updatedUnlocked);
-                          localStorage.setItem('kuri_unlocked_uuids', JSON.stringify(updatedUnlocked));
-                        }
-
-                        saveState(updatedSubs, kuries, auctions, payments);
-                        
-                        setNewSubName('');
-                        setNewSubPhone('');
-                        setNewSubEmail('');
-                        setNewSubMemberUuid('');
-                        setIsSubscriberModalOpen(false);
-                        alert(`Successfully registered subscriber: ${newSub.name}`);
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs rounded-xl transition-all shadow-md"
-                    >
-                      Save Subscriber
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+              
+              <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsSubscriberModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>
+                <button 
+                  type="submit" 
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10"
+                >
+                  Register Subscriber
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -2571,7 +2491,6 @@ export default function Home() {
                 Lucky Draw
               </button>
             </div>
-
             <form onSubmit={handleRunAuction} className="space-y-4">
               {auctionMode === 'bidding' ? (
                 <>
@@ -2584,7 +2503,7 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-semibold text-zinc-400"><label>Prize Payout Bid (₹)</label><span>Max: ₹{(Number(selectedKuri.totalValue) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent))/100).toLocaleString('en-IN')}</span></div>
+                    <div className="flex justify-between text-xs font-semibold text-zinc-400"><label>Prize Payout Bid (₹)</label><span>Max: ₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</span></div>
                     <input type="number" required value={auctionWinningBid} onChange={(e) => setAuctionWinningBid(Number(e.target.value))} placeholder="e.g. 430000" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
                   </div>
                 </>
@@ -2611,7 +2530,7 @@ export default function Home() {
                         <p className="text-xs text-zinc-400 mt-0.5 font-mono">Ticket Number: <span className="text-white font-bold">#{luckyDrawWinner.ticketNumber}</span></p>
                       </div>
                       <div className="pt-2 text-[10px] text-zinc-500 font-medium">
-                        Auto-configured payout: <span className="text-white font-bold">₹{auctionWinningBid.toLocaleString('en-IN')}</span> (Max Payout minus Foreman's Commission)
+                        Auto-configured payout: <span className="text-white font-bold">₹{auctionWinningBid.toLocaleString('en-IN')}</span>
                       </div>
                     </div>
                   ) : (
@@ -2635,12 +2554,11 @@ export default function Home() {
               )}
 
               <div className="p-3.5 rounded-xl bg-zinc-900/40 border border-zinc-800 space-y-2 text-xs font-mono">
-                <div className="flex justify-between text-zinc-400"><span>Chit Fund Pool:</span><span className="font-bold text-white">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</span></div>
-                <div className="flex justify-between text-zinc-400"><span>Foreman Commission:</span><span className="font-bold text-white">₹{((Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100).toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between text-zinc-400"><span>Pool:</span><span className="font-bold text-white">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</span></div>
                 <div className="flex justify-between text-zinc-400"><span>Total Discount:</span><span className="font-bold text-white">₹{Math.round(Number(selectedKuri.totalValue) - auctionWinningBid).toLocaleString('en-IN')}</span></div>
                 <div className="flex justify-between border-t border-zinc-850 pt-2 text-zinc-300 font-semibold font-sans">
                   <span>Projected Dividend / member:</span>
-                  <span className="text-emerald-400 font-mono">₹{Math.max(0, Math.round(((Number(selectedKuri.totalValue) - auctionWinningBid) - (Number(selectedKuri.totalValue) * Number(selectedKuri.foremanCommissionPercent)) / 100) / selectedKuri.subscribers.length)).toLocaleString('en-IN')}</span>
+                  <span className="text-emerald-400 font-mono">₹{Math.max(0, Math.round((Number(selectedKuri.totalValue) - auctionWinningBid) / selectedKuri.subscribers.length)).toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
