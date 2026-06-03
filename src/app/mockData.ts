@@ -64,6 +64,7 @@ export interface Kuri {
   subscribers: KuriSubscriber[];
   currentMonth: number;
   payday?: number; // E.g. day of month (1-31), defaults to 10
+  schemeUuid?: string;
 }
 
 // Default Global Subscribers Pool

@@ -53,7 +53,7 @@ export async function GET() {
       const kuriesResult = await pool.query(
         `SELECT DISTINCT k.id, k.name, k.total_value as "totalValue", k.duration_months as "durationMonths", 
                          k.installment_amount as "installmentAmount", k.foreman_commission_percent as "foremanCommissionPercent", 
-                         k.start_date as "startDate", k.status, k.current_month as "currentMonth", k.payday
+                         k.start_date as "startDate", k.status, k.current_month as "currentMonth", k.payday, k.scheme_uuid as "schemeUuid"
           FROM kuries k
           INNER JOIN kuri_subscribers ks ON k.id = ks.kuri_id
           INNER JOIN global_subscribers gs ON ks.subscriber_id = gs.id
@@ -77,6 +77,7 @@ export async function GET() {
           currentMonth: Number(k.currentMonth),
           durationMonths: Number(k.durationMonths),
           payday: Number(k.payday),
+          schemeUuid: k.schemeUuid,
           subscribers: ksResult.rows.map(sub => ({
             ...sub,
             isPrized: Boolean(sub.isPrized),
@@ -157,7 +158,7 @@ export async function GET() {
 
       // 2. Fetch Kuries
       const kuriesResult = await pool.query(
-        'SELECT id, name, total_value as "totalValue", duration_months as "durationMonths", installment_amount as "installmentAmount", foreman_commission_percent as "foremanCommissionPercent", start_date as "startDate", status, current_month as "currentMonth", payday FROM kuries WHERE user_id = $1',
+        'SELECT id, name, total_value as "totalValue", duration_months as "durationMonths", installment_amount as "installmentAmount", foreman_commission_percent as "foremanCommissionPercent", start_date as "startDate", status, current_month as "currentMonth", payday, scheme_uuid as "schemeUuid" FROM kuries WHERE user_id = $1',
         [userId]
       );
       
@@ -175,6 +176,7 @@ export async function GET() {
           currentMonth: Number(k.currentMonth),
           durationMonths: Number(k.durationMonths),
           payday: Number(k.payday),
+          schemeUuid: k.schemeUuid,
           subscribers: ksResult.rows.map(sub => ({
             ...sub,
             isPrized: Boolean(sub.isPrized),
@@ -302,8 +304,8 @@ export async function POST(request: Request) {
     if (kuries && kuries.length > 0) {
       for (const k of kuries) {
         await client.query(
-          `INSERT INTO kuries (id, user_id, name, total_value, duration_months, installment_amount, foreman_commission_percent, start_date, status, current_month, payday) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          `INSERT INTO kuries (id, user_id, name, total_value, duration_months, installment_amount, foreman_commission_percent, start_date, status, current_month, payday, scheme_uuid) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
           [
             k.id,
             userId,
@@ -315,7 +317,8 @@ export async function POST(request: Request) {
             k.startDate,
             k.status || 'active',
             k.currentMonth || 1,
-            k.payday || 10
+            k.payday || 10,
+            k.schemeUuid || '00000000-0000-0000-0000-000000000000'
           ]
         );
 

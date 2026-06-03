@@ -131,6 +131,21 @@ export default function Home() {
   const [schemeUuidInput, setSchemeUuidInput] = useState('');
   const [activeSchemeUuidInput, setActiveSchemeUuidInput] = useState('');
 
+  // Join Requests
+  interface JoinRequest {
+    id: number;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+    userName?: string;
+    userEmail?: string;
+    userUuid?: string;
+    kuriId: string;
+    kuriName: string;
+    installmentAmount: number;
+  }
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [memberJoinRequestUuid, setMemberJoinRequestUuid] = useState('');
+
   // Load unlocked UUIDs on mount
   useEffect(() => {
     const stored = localStorage.getItem('kuri_unlocked_uuids');
@@ -232,6 +247,7 @@ export default function Home() {
             setReminders(syncData.reminders || []);
             setSyncStatus('synced');
             setLastSynced(new Date().toLocaleTimeString());
+            await fetchJoinRequests();
             setIsAuthChecking(false);
             return;
           }
@@ -244,6 +260,7 @@ export default function Home() {
             setReminders(syncData.reminders || []);
             setSyncStatus('synced');
             setLastSynced(new Date().toLocaleTimeString());
+            await fetchJoinRequests();
           } else {
             // Seeding DB with default chitty data
             await fetch('/api/sync', {
@@ -262,6 +279,7 @@ export default function Home() {
             setPayments(DEFAULT_PAYMENTS);
             setSyncStatus('synced');
             setLastSynced(new Date().toLocaleTimeString());
+            await fetchJoinRequests();
           }
         } else {
           setPageState('landing');
@@ -429,12 +447,14 @@ export default function Home() {
           setAuctions(syncData.auctions || []);
           setPayments(syncData.payments || []);
           setReminders(syncData.reminders || []);
+          await fetchJoinRequests();
         } else if (syncData.kuries && syncData.kuries.length > 0) {
           setSubscribers(syncData.subscribers);
           setKuries(syncData.kuries);
           setAuctions(syncData.auctions);
           setPayments(syncData.payments);
           setReminders(syncData.reminders || []);
+          await fetchJoinRequests();
         } else {
           // Empty account! Seed Neon with chitty data
           await fetch('/api/sync', {
@@ -453,6 +473,7 @@ export default function Home() {
           setAuctions(DEFAULT_AUCTIONS);
           setPayments(DEFAULT_PAYMENTS);
           setReminders([]);
+          await fetchJoinRequests();
         }
         
         setSyncStatus('synced');
@@ -476,9 +497,72 @@ export default function Home() {
         setKuries([]);
         setAuctions([]);
         setPayments([]);
+        setJoinRequests([]);
       } catch (err) {
         console.error('Logout error:', err);
       }
+    }
+  };
+
+  const fetchJoinRequests = async () => {
+    try {
+      const response = await fetch('/api/schemes/join-request');
+      if (response.ok) {
+        const data = await response.json();
+        setJoinRequests(data.requests || []);
+      }
+    } catch (err) {
+      console.error('Error fetching join requests:', err);
+    }
+  };
+
+  const handleRequestJoinScheme = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberJoinRequestUuid.trim()) return;
+    try {
+      const response = await fetch('/api/schemes/join-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schemeUuid: memberJoinRequestUuid.trim() })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Failed to submit join request');
+        return;
+      }
+      alert(data.message || 'Join request submitted successfully for approval!');
+      setMemberJoinRequestUuid('');
+      await fetchJoinRequests();
+    } catch (err) {
+      console.error(err);
+      alert('Error submitting join request');
+    }
+  };
+
+  const handleProcessJoinRequest = async (requestId: number, status: 'approved' | 'rejected') => {
+    try {
+      const response = await fetch('/api/schemes/join-request', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, status })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Failed to process request');
+        return;
+      }
+      alert(`Join request successfully ${status}!`);
+      
+      // Reload states
+      await fetchJoinRequests();
+      const syncRes = await fetch('/api/sync');
+      const syncData = await syncRes.json();
+      setSubscribers(syncData.subscribers || []);
+      setKuries(syncData.kuries || []);
+      setPayments(syncData.payments || []);
+    } catch (err) {
+      console.error(err);
+      alert('Error processing request');
     }
   };
 
@@ -1708,6 +1792,61 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Join Requests Manager for Admin */}
+              {user?.role === 'admin' && joinRequests.length > 0 && (
+                <div className="p-5 rounded-2xl glass-panel border border-zinc-800 space-y-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                      <UserCheck className="h-5 w-5 text-emerald-400" />
+                      Pending Scheme Join Requests ({joinRequests.filter(r => r.status === 'pending').length})
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Registered members seeking enrollment in your saving schemes via invite UUIDs.
+                    </p>
+                  </div>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {joinRequests.map((req) => (
+                      <div key={req.id} className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-850 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white">{req.userName}</span>
+                            <span className="text-[10px] text-zinc-500 font-mono select-all">({req.userUuid?.slice(0, 8)}...)</span>
+                          </div>
+                          <p className="text-zinc-400 mt-1">Requested to join: <span className="text-indigo-400 font-bold">{req.kuriName}</span> (Installment: ₹{Number(req.installmentAmount).toLocaleString('en-IN')})</p>
+                          <span className="text-[10px] text-zinc-500 font-medium block mt-1 font-mono">Date: {new Date(req.requestedAt).toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {req.status === 'pending' ? (
+                            <>
+                              <button
+                                onClick={() => handleProcessJoinRequest(req.id, 'approved')}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleProcessJoinRequest(req.id, 'rejected')}
+                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          ) : (
+                            <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded border ${
+                              req.status === 'approved' 
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            }`}>
+                              {req.status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Member UUID Banner */}
               {user?.role === 'member' && (
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/40 to-sky-950/40 border border-indigo-500/25 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-lg shadow-indigo-500/5 relative overflow-hidden animate-float">
@@ -1733,6 +1872,63 @@ export default function Home() {
                       Copy
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* Join New Scheme Card for Members */}
+              {user?.role === 'member' && (
+                <div className="p-5 rounded-2xl glass-panel border border-zinc-800 space-y-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                      <Plus className="h-5 w-5 text-indigo-400" />
+                      Join Kuri Scheme via Invite UUID
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Enter the Scheme UUID provided by your Group Admin to submit a join request. Enrolling requires Admin approval.
+                    </p>
+                  </div>
+                  
+                  <form onSubmit={handleRequestJoinScheme} className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      required
+                      value={memberJoinRequestUuid}
+                      onChange={(e) => setMemberJoinRequestUuid(e.target.value)}
+                      placeholder="Enter Scheme UUID (e.g. gen_random_uuid format)..."
+                      className="flex-1 px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 font-mono"
+                    />
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shrink-0"
+                    >
+                      Submit Join Request
+                    </button>
+                  </form>
+
+                  {joinRequests.length > 0 && (
+                    <div className="space-y-2 pt-3 border-t border-zinc-900">
+                      <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Your Join Requests ({joinRequests.length})</span>
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {joinRequests.map(r => (
+                          <div key={r.id} className="p-3 rounded-lg bg-zinc-900/30 border border-zinc-850/60 flex items-center justify-between gap-4 text-xs">
+                            <div>
+                              <p className="font-bold text-white">{r.kuriName}</p>
+                              <p className="text-[10px] text-zinc-500 mt-0.5">Monthly Installment: ₹{Number(r.installmentAmount).toLocaleString('en-IN')}</p>
+                            </div>
+                            <span className={`text-[10px] uppercase font-black px-2 py-0.5 rounded border ${
+                              r.status === 'pending'
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                : r.status === 'approved'
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            }`}>
+                              {r.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2079,6 +2275,21 @@ export default function Home() {
                             <p className="text-xs text-zinc-400 font-medium mt-2">
                               Installment: <span className="font-bold text-zinc-200">₹{Number(k.installmentAmount).toLocaleString('en-IN')} / month</span>
                             </p>
+                            {k.schemeUuid && (
+                              <div className="mt-3 flex items-center justify-between gap-2 bg-zinc-950/60 px-2 py-1.5 rounded-lg border border-zinc-800/80">
+                                <span className="text-[10px] text-zinc-500 font-mono select-all truncate max-w-[170px]">{k.schemeUuid}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(k.schemeUuid || '');
+                                    alert('Scheme Invite UUID copied to clipboard!');
+                                  }}
+                                  className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/15 shrink-0 hover:bg-indigo-500/20"
+                                >
+                                  Copy ID
+                                </button>
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-3.5 mt-4">
                             <div className="space-y-1">
@@ -2125,6 +2336,21 @@ export default function Home() {
                         {selectedKuri.name}
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${selectedKuri.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>{selectedKuri.status}</span>
                       </h2>
+                      {selectedKuri.schemeUuid && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider font-mono">SCHEME UUID:</span>
+                          <span className="text-[11px] font-mono text-zinc-300 select-all">{selectedKuri.schemeUuid}</span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(selectedKuri.schemeUuid || '');
+                              alert('Scheme Invite UUID copied to clipboard!');
+                            }}
+                            className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300"
+                          >
+                            [Copy]
+                          </button>
+                        </div>
+                      )}
                       <p className="text-xs text-zinc-500 font-semibold mt-1">Scheme started on {new Date(selectedKuri.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                     </div>
 
