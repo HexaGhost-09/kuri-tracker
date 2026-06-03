@@ -159,11 +159,8 @@ export default function Home() {
   }, []);
 
   const visibleSubscribers = useMemo(() => {
-    if (user?.role === 'member') {
-      return subscribers;
-    }
-    return subscribers.filter(sub => sub.memberUuid && unlockedUuids.includes(sub.memberUuid));
-  }, [subscribers, unlockedUuids, user]);
+    return subscribers;
+  }, [subscribers]);
 
   const activeAutoReminders = useMemo(() => {
     const list: { id: string; kuriName: string; message: string; diffDays: number }[] = [];
@@ -1187,7 +1184,7 @@ export default function Home() {
 
       return {
         subscriberId: ks.subscriberId,
-        name: sub?.name || 'Hidden (Provide UUID to view)',
+        name: sub?.name || `Ticket #${ks.ticketNumber}`,
         ticketNumber: ks.ticketNumber,
         isPrized: ks.isPrized,
         prizedMonth: ks.prizedMonth,
@@ -1206,7 +1203,7 @@ export default function Home() {
         const sub = visibleSubscribers.find(s => s.id === ks.subscriberId);
         return {
           id: ks.subscriberId,
-          name: sub?.name || `Ticket #${ks.ticketNumber} (Hidden)`,
+          name: sub?.name || `Ticket #${ks.ticketNumber}`,
           ticketNumber: ks.ticketNumber
         };
       });
@@ -2569,8 +2566,8 @@ export default function Home() {
                       <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-2">
                         {selectedKuri.subscribers.map(ks => {
                           const sub = visibleSubscribers.find(s => s.id === ks.subscriberId);
-                          const displayName = sub ? sub.name : `Ticket #${ks.ticketNumber} (Hidden)`;
-                          const displayPhone = sub ? sub.phone : 'UUID locked';
+                          const displayName = sub ? sub.name : `Ticket #${ks.ticketNumber}`;
+                          const displayPhone = sub ? (sub.phone || 'No phone number') : 'No phone number';
                           return (
                             <div key={ks.subscriberId} className="p-3.5 rounded-xl bg-zinc-900/30 border border-zinc-800/80 flex items-center justify-between gap-4">
                               <div className="flex items-center gap-3">
