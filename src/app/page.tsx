@@ -45,6 +45,7 @@ import {
   Auction, 
   Payment, 
   Kuri,
+  Reminder,
   DEFAULT_SUBSCRIBERS,
   DEFAULT_KURIES,
   DEFAULT_AUCTIONS,
@@ -63,6 +64,11 @@ export default function Home() {
   const [kuries, setKuries] = useState<Kuri[]>([]);
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  // Reminder Modal form state
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [reminderSubId, setReminderSubId] = useState('all');
+  const [reminderMessage, setReminderMessage] = useState('');
   
   const [activeTab, setActiveTab] = useState<'dashboard' | 'kuries' | 'subscribers' | 'calculator'>('dashboard');
   const [selectedKuriId, setSelectedKuriId] = useState<string | null>(null);
@@ -104,6 +110,7 @@ export default function Home() {
   const [newKuriCommission, setNewKuriCommission] = useState(0);
   const [isCommissionEnabled, setIsCommissionEnabled] = useState(false);
   const [newKuriStartDate, setNewKuriStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [newKuriPayday, setNewKuriPayday] = useState(10);
   const [selectedEnrollSubscribers, setSelectedEnrollSubscribers] = useState<string[]>([]);
   
   // New Subscriber Form
@@ -136,6 +143,53 @@ export default function Home() {
     }
     return subscribers.filter(sub => sub.memberUuid && unlockedUuids.includes(sub.memberUuid));
   }, [subscribers, unlockedUuids, user]);
+
+  const activeAutoReminders = useMemo(() => {
+    const list: { id: string; kuriName: string; message: string; diffDays: number }[] = [];
+    const today = new Date();
+    const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    kuries.forEach(k => {
+      if (k.status !== 'active') return;
+      const payday = k.payday || 10;
+      const dueDate = new Date(today.getFullYear(), today.getMonth(), payday);
+      const diffTime = dueDate.getTime() - todayDateOnly.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      
+      if ([10, 5, 3, 2, 1].includes(diffDays)) {
+        let shouldRemind = false;
+        if (user?.role === 'member') {
+          const mySub = subscribers.find(s => s.memberUuid === user.uuid);
+          if (mySub) {
+            const isEnrolled = k.subscribers.some(ks => ks.subscriberId === mySub.id && !ks.isPrized);
+            const hasPending = payments.some(p => p.kuriId === k.id && p.subscriberId === mySub.id && p.month === k.currentMonth && p.status === 'pending');
+            shouldRemind = isEnrolled && hasPending;
+          }
+        } else {
+          shouldRemind = true;
+        }
+        
+        if (shouldRemind) {
+          list.push({
+            id: `auto-${k.id}-${diffDays}`,
+            kuriName: k.name,
+            message: `⚠️ AUTO-REMINDER: Month ${k.currentMonth} payment of ₹${k.installmentAmount.toLocaleString('en-IN')} for scheme "${k.name}" is due in ${diffDays} days (on the ${payday}th of the month)!`,
+            diffDays
+          });
+        }
+      }
+    });
+    return list;
+  }, [kuries, payments, subscribers, user]);
+
+  const displayedReminders = useMemo(() => {
+    if (user?.role === 'member') {
+      const mySub = subscribers.find(s => s.memberUuid === user.uuid);
+      if (!mySub) return [];
+      return reminders.filter(r => r.subscriberId === mySub.id);
+    }
+    return reminders;
+  }, [reminders, subscribers, user]);
   
   // Run Auction Form
   const [auctionWinningBid, setAuctionWinningBid] = useState(400000); 
@@ -169,6 +223,7 @@ export default function Home() {
             setKuries(syncData.kuries || []);
             setAuctions(syncData.auctions || []);
             setPayments(syncData.payments || []);
+            setReminders(syncData.reminders || []);
             setSyncStatus('synced');
             setLastSynced(new Date().toLocaleTimeString());
             setIsAuthChecking(false);
@@ -180,6 +235,7 @@ export default function Home() {
             setKuries(syncData.kuries);
             setAuctions(syncData.auctions);
             setPayments(syncData.payments);
+            setReminders(syncData.reminders || []);
             setSyncStatus('synced');
             setLastSynced(new Date().toLocaleTimeString());
           } else {
@@ -219,19 +275,22 @@ export default function Home() {
     newSubs: Subscriber[], 
     newKuries: Kuri[], 
     newAuctions: Auction[], 
-    newPayments: Payment[]
+    newPayments: Payment[],
+    newReminders: Reminder[] = reminders
   ) => {
     // Update local state instantly
     setSubscribers(newSubs);
     setKuries(newKuries);
     setAuctions(newAuctions);
     setPayments(newPayments);
+    setReminders(newReminders);
 
     // Save fallback to LocalStorage
     localStorage.setItem('kuri_subscribers', JSON.stringify(newSubs));
     localStorage.setItem('kuri_kuries', JSON.stringify(newKuries));
     localStorage.setItem('kuri_auctions', JSON.stringify(newAuctions));
     localStorage.setItem('kuri_payments', JSON.stringify(newPayments));
+    localStorage.setItem('kuri_reminders', JSON.stringify(newReminders));
 
     // Auto-sync to Neon cloud DB if logged in
     if (user) {
@@ -244,7 +303,8 @@ export default function Home() {
             subscribers: newSubs,
             kuries: newKuries,
             auctions: newAuctions,
-            payments: newPayments
+            payments: newPayments,
+            reminders: newReminders
           })
         });
         
@@ -362,11 +422,13 @@ export default function Home() {
           setKuries(syncData.kuries || []);
           setAuctions(syncData.auctions || []);
           setPayments(syncData.payments || []);
+          setReminders(syncData.reminders || []);
         } else if (syncData.kuries && syncData.kuries.length > 0) {
           setSubscribers(syncData.subscribers);
           setKuries(syncData.kuries);
           setAuctions(syncData.auctions);
           setPayments(syncData.payments);
+          setReminders(syncData.reminders || []);
         } else {
           // Empty account! Seed Neon with chitty data
           await fetch('/api/sync', {
@@ -376,13 +438,15 @@ export default function Home() {
               subscribers: DEFAULT_SUBSCRIBERS,
               kuries: DEFAULT_KURIES,
               auctions: DEFAULT_AUCTIONS,
-              payments: DEFAULT_PAYMENTS
+              payments: DEFAULT_PAYMENTS,
+              reminders: []
             })
           });
           setSubscribers(DEFAULT_SUBSCRIBERS);
           setKuries(DEFAULT_KURIES);
           setAuctions(DEFAULT_AUCTIONS);
           setPayments(DEFAULT_PAYMENTS);
+          setReminders([]);
         }
         
         setSyncStatus('synced');
@@ -665,7 +729,8 @@ export default function Home() {
       startDate: newKuriStartDate,
       status: 'active',
       currentMonth: 1,
-      subscribers: enrolledKuriSubs
+      subscribers: enrolledKuriSubs,
+      payday: Number(newKuriPayday)
     };
 
     const newInstallmentPayments: Payment[] = enrolledKuriSubs.map(sub => ({
@@ -688,6 +753,7 @@ export default function Home() {
     setNewKuriDuration(10);
     setNewKuriCommission(0);
     setIsCommissionEnabled(false);
+    setNewKuriPayday(10);
     setSelectedEnrollSubscribers([]);
     setIsKuriModalOpen(false);
     setSelectedKuriId(kuriId); 
@@ -815,13 +881,81 @@ export default function Home() {
 
   // Delete Kuri
   const handleDeleteKuri = (kuriId: string) => {
-    if (confirm('Are you sure you want to delete this Kuri and all its auction/payment records?')) {
-      const updatedKuries = kuries.filter(k => k.id !== kuriId);
-      const updatedAuctions = auctions.filter(a => a.kuriId !== kuriId);
-      const updatedPayments = payments.filter(p => p.kuriId !== kuriId);
-      saveState(subscribers, updatedKuries, updatedAuctions, updatedPayments);
-      setSelectedKuriId(null);
+    const k = kuries.find(x => x.id === kuriId);
+    if (!k) return;
+    const userInput = prompt(`WARNING: This will permanently delete the Kuri scheme "${k.name}" and all associated payment & auction history.\n\nTo confirm, please type the name of the scheme below:`);
+    if (userInput !== k.name) {
+      alert('Scheme name did not match. Deletion cancelled.');
+      return;
     }
+    const updatedKuries = kuries.filter(x => x.id !== kuriId);
+    const updatedAuctions = auctions.filter(a => a.kuriId !== kuriId);
+    const updatedPayments = payments.filter(p => p.kuriId !== kuriId);
+    const updatedReminders = reminders.filter(r => r.kuriId !== kuriId);
+    saveState(subscribers, updatedKuries, updatedAuctions, updatedPayments, updatedReminders);
+    setSelectedKuriId(null);
+    alert('Scheme successfully deleted.');
+  };
+
+  const handleSendReminder = (kuriId: string, subId: string, customMessage?: string) => {
+    const k = kuries.find(x => x.id === kuriId);
+    if (!k) return;
+    const sub = subscribers.find(s => s.id === subId);
+    const name = sub ? sub.name : `Subscriber ${subId}`;
+    
+    const currentMonth = k.currentMonth;
+    const amount = k.installmentAmount;
+    
+    const message = customMessage || `Reminder: Please pay your installment of ₹${amount.toLocaleString('en-IN')} for Month ${currentMonth} in scheme "${k.name}". Due day: ${k.payday || 10}th of the month.`;
+    
+    const newReminder: Reminder = {
+      id: `rem-${Date.now()}-${subId}`,
+      kuriId,
+      subscriberId: subId,
+      month: currentMonth,
+      message,
+      type: 'manual',
+      date: new Date().toISOString().split('T')[0],
+      isRead: false
+    };
+    
+    const updatedReminders = [...reminders, newReminder];
+    saveState(subscribers, kuries, auctions, payments, updatedReminders);
+    alert(`Reminder sent successfully to ${name}!`);
+  };
+
+  const handleSendReminderToAllUnpaid = (kuriId: string) => {
+    const k = kuries.find(x => x.id === kuriId);
+    if (!k) return;
+    
+    const currentMonth = k.currentMonth;
+    const unpaidSubs = k.subscribers.filter(ks => {
+      const pay = payments.find(p => p.kuriId === kuriId && p.subscriberId === ks.subscriberId && p.month === currentMonth);
+      return pay && pay.status === 'pending';
+    });
+    
+    if (unpaidSubs.length === 0) {
+      alert('All subscribers have paid for this month!');
+      return;
+    }
+    
+    const message = prompt("Enter reminder message:", `Reminder: Please pay your installment of ₹${k.installmentAmount.toLocaleString('en-IN')} for Month ${currentMonth} in scheme "${k.name}" before the payday (${k.payday || 10}th of the month).`);
+    if (message === null) return;
+    
+    const newRems: Reminder[] = unpaidSubs.map(ks => ({
+      id: `rem-${Date.now()}-${ks.subscriberId}`,
+      kuriId,
+      subscriberId: ks.subscriberId,
+      month: currentMonth,
+      message: message || `Reminder: Please pay your installment of ₹${k.installmentAmount.toLocaleString('en-IN')} for Month ${currentMonth} in scheme "${k.name}" before the payday (${k.payday || 10}th of the month).`,
+      type: 'manual',
+      date: new Date().toISOString().split('T')[0],
+      isRead: false
+    }));
+    
+    const updatedReminders = [...reminders, ...newRems];
+    saveState(subscribers, kuries, auctions, payments, updatedReminders);
+    alert(`Reminders sent successfully to ${unpaidSubs.length} unpaid members!`);
   };
 
   // Delete Subscriber
@@ -1558,6 +1692,52 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Payment Reminders & Due Date Alerts Panel */}
+              {(activeAutoReminders.length > 0 || displayedReminders.length > 0) && (
+                <div className="p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20 space-y-3.5 relative overflow-hidden animate-fade-in">
+                  <div className="absolute right-0 top-0 bottom-0 w-1/4 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent pointer-events-none" />
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-amber-400 tracking-widest uppercase flex items-center gap-2">
+                      <Clock className="h-4.5 w-4.5 text-amber-400 animate-pulse" />
+                      Important Payment Reminders ({activeAutoReminders.length + displayedReminders.length})
+                    </h3>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {/* Auto reminders */}
+                    {activeAutoReminders.map(ar => (
+                      <div key={ar.id} className="p-3 bg-zinc-950/60 border border-amber-500/20 rounded-xl flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                          <p className="text-xs font-semibold text-zinc-300">{ar.message}</p>
+                        </div>
+                        <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded font-mono shrink-0">Auto Alert</span>
+                      </div>
+                    ))}
+                    
+                    {/* Manual reminders */}
+                    {displayedReminders.map(r => {
+                      const kuri = kuries.find(k => k.id === r.kuriId);
+                      const sub = subscribers.find(s => s.id === r.subscriberId);
+                      return (
+                        <div key={r.id} className="p-3 bg-zinc-950/60 border border-indigo-500/20 rounded-xl flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <span className="h-2 w-2 rounded-full bg-indigo-400 shrink-0" />
+                            <div>
+                              <p className="text-xs font-semibold text-zinc-300">{r.message}</p>
+                              {user?.role === 'admin' && (
+                                <span className="text-[9px] text-zinc-500 font-medium block mt-0.5">Sent to: {sub?.name || 'Unknown'} (Month {r.month})</span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-[10px] uppercase font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded font-mono shrink-0">Admin Alert</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Stats Counters Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
@@ -1846,9 +2026,18 @@ export default function Home() {
                     {user?.role !== 'member' && (
                       <div className="flex items-center gap-3">
                         {selectedKuri.status === 'active' && (
-                          <button onClick={openAuctionModal} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
-                            <TrendingUp className="h-4.5 w-4.5" /> Run Month {selectedKuri.currentMonth} Auction
-                          </button>
+                          <>
+                            <button onClick={openAuctionModal} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/10 flex items-center gap-2">
+                              <TrendingUp className="h-4.5 w-4.5" /> Run Month {selectedKuri.currentMonth} Auction
+                            </button>
+                            <button 
+                              onClick={() => handleSendReminderToAllUnpaid(selectedKuri.id)}
+                              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm rounded-xl transition-all shadow-md flex items-center gap-2"
+                              title="Remind unpaid members for this month"
+                            >
+                              <Clock className="h-4.5 w-4.5" /> Remind Unpaid
+                            </button>
+                          </>
                         )}
                         <button onClick={() => handleDeleteKuri(selectedKuri.id)} className="p-2.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl border border-zinc-800 transition-all" title="Delete Scheme"><Trash2 className="h-4.5 w-4.5" /></button>
                       </div>
@@ -1884,7 +2073,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Chit Value</span>
                       <h4 className="text-lg font-bold text-white mt-1 font-mono">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</h4>
@@ -1900,6 +2089,10 @@ export default function Home() {
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Milestone Month</span>
                       <h4 className="text-lg font-bold text-indigo-400 mt-1 font-mono">{selectedKuri.currentMonth} of {selectedKuri.durationMonths}</h4>
+                    </div>
+                    <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
+                      <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Monthly Payday</span>
+                      <h4 className="text-lg font-bold text-amber-400 mt-1 font-mono">{selectedKuri.payday || 10}th <span className="text-xs font-normal text-zinc-500">/mo</span></h4>
                     </div>
                   </div>
 
@@ -2012,8 +2205,25 @@ export default function Home() {
                                   <span className="text-[10.5px] text-zinc-500 font-medium flex items-center gap-2"><Phone className="h-3 w-3" /> {displayPhone}</span>
                                 </div>
                               </div>
-                              <div>
-                                {ks.isPrized ? <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Prized (M{ks.prizedMonth})</span> : <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Active Subscriber</span>}
+                              <div className="flex items-center gap-2">
+                                {ks.isPrized ? (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Prized (M{ks.prizedMonth})</span>
+                                ) : (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Active Subscriber</span>
+                                )}
+                                {user?.role === 'admin' && !ks.isPrized && (
+                                  <button
+                                    onClick={() => {
+                                      const msg = prompt(`Enter custom reminder for ${displayName}:`, `Reminder: Please pay your installment of ₹${selectedKuri.installmentAmount.toLocaleString('en-IN')} for Month ${selectedKuri.currentMonth} in scheme "${selectedKuri.name}" before the payday (${selectedKuri.payday || 10}th of the month).`);
+                                      if (msg !== null) {
+                                        handleSendReminder(selectedKuri.id, ks.subscriberId, msg);
+                                      }
+                                    }}
+                                    className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[10px] font-bold rounded-lg transition-all"
+                                  >
+                                    Remind
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );
@@ -2109,7 +2319,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Duration (Months)</label>
                   <input type="number" required min="2" max="60" value={newKuriDuration} onChange={(e) => setNewKuriDuration(Number(e.target.value))} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
@@ -2150,6 +2360,18 @@ export default function Home() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Start Date</label>
                   <input type="date" required value={newKuriStartDate} onChange={(e) => setNewKuriStartDate(e.target.value)} className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-400">Monthly Payday (Day 1-28)</label>
+                  <input 
+                    type="number" 
+                    required 
+                    min="1" 
+                    max="28" 
+                    value={newKuriPayday} 
+                    onChange={(e) => setNewKuriPayday(Number(e.target.value))} 
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono" 
+                  />
                 </div>
               </div>
 

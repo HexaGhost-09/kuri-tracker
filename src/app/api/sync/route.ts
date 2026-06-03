@@ -31,6 +31,7 @@ export async function GET() {
     let kuriesList = [];
     let auctions = [];
     let payments = [];
+    let reminders = [];
 
     if (userRole === 'member') {
       // --- GROUP MEMBER READ-ONLY DASHBOARD PULL ---
@@ -52,11 +53,11 @@ export async function GET() {
       const kuriesResult = await pool.query(
         `SELECT DISTINCT k.id, k.name, k.total_value as "totalValue", k.duration_months as "durationMonths", 
                          k.installment_amount as "installmentAmount", k.foreman_commission_percent as "foremanCommissionPercent", 
-                         k.start_date as "startDate", k.status, k.current_month as "currentMonth"
-         FROM kuries k
-         INNER JOIN kuri_subscribers ks ON k.id = ks.kuri_id
-         INNER JOIN global_subscribers gs ON ks.subscriber_id = gs.id
-         WHERE gs.member_uuid = $1`,
+                         k.start_date as "startDate", k.status, k.current_month as "currentMonth", k.payday
+          FROM kuries k
+          INNER JOIN kuri_subscribers ks ON k.id = ks.kuri_id
+          INNER JOIN global_subscribers gs ON ks.subscriber_id = gs.id
+          WHERE gs.member_uuid = $1`,
         [userUuid]
       );
       
@@ -75,6 +76,7 @@ export async function GET() {
           foremanCommissionPercent: Number(k.foremanCommissionPercent),
           currentMonth: Number(k.currentMonth),
           durationMonths: Number(k.durationMonths),
+          payday: Number(k.payday),
           subscribers: ksResult.rows.map(sub => ({
             ...sub,
             isPrized: Boolean(sub.isPrized),
@@ -127,6 +129,23 @@ export async function GET() {
         amount: Number(p.amount)
       }));
 
+      // 5. Fetch Reminders
+      const remindersResult = await pool.query(
+        `SELECT r.id, r.kuri_id as "kuriId", r.subscriber_id as "subscriberId", r.month, r.message, r.type, r.date, r.is_read as "isRead"
+         FROM reminders r
+         WHERE r.kuri_id IN (
+           SELECT DISTINCT ks.kuri_id FROM kuri_subscribers ks
+           INNER JOIN global_subscribers gs ON ks.subscriber_id = gs.id
+           WHERE gs.member_uuid = $1
+         )`,
+        [userUuid]
+      );
+      reminders = remindersResult.rows.map(r => ({
+        ...r,
+        month: Number(r.month),
+        isRead: Boolean(r.isRead)
+      }));
+
     } else {
       // --- PERSONAL TRACKER OR GROUP ADMIN STANDARD PULL ---
       // 1. Fetch Global Subscribers
@@ -138,7 +157,7 @@ export async function GET() {
 
       // 2. Fetch Kuries
       const kuriesResult = await pool.query(
-        'SELECT id, name, total_value as "totalValue", duration_months as "durationMonths", installment_amount as "installmentAmount", foreman_commission_percent as "foremanCommissionPercent", start_date as "startDate", status, current_month as "currentMonth" FROM kuries WHERE user_id = $1',
+        'SELECT id, name, total_value as "totalValue", duration_months as "durationMonths", installment_amount as "installmentAmount", foreman_commission_percent as "foremanCommissionPercent", start_date as "startDate", status, current_month as "currentMonth", payday FROM kuries WHERE user_id = $1',
         [userId]
       );
       
@@ -155,6 +174,7 @@ export async function GET() {
           foremanCommissionPercent: Number(k.foremanCommissionPercent),
           currentMonth: Number(k.currentMonth),
           durationMonths: Number(k.durationMonths),
+          payday: Number(k.payday),
           subscribers: ksResult.rows.map(sub => ({
             ...sub,
             isPrized: Boolean(sub.isPrized),
@@ -200,13 +220,28 @@ export async function GET() {
         month: Number(p.month),
         amount: Number(p.amount)
       }));
+
+      // 5. Fetch Reminders
+      const remindersResult = await pool.query(
+        `SELECT r.id, r.kuri_id as "kuriId", r.subscriber_id as "subscriberId", r.month, r.message, r.type, r.date, r.is_read as "isRead"
+         FROM reminders r
+         INNER JOIN kuries k ON r.kuri_id = k.id
+         WHERE k.user_id = $1`,
+        [userId]
+      );
+      reminders = remindersResult.rows.map(r => ({
+        ...r,
+        month: Number(r.month),
+        isRead: Boolean(r.isRead)
+      }));
     }
 
     return NextResponse.json({
       subscribers,
       kuries: kuriesList,
       auctions,
-      payments
+      payments,
+      reminders
     });
   } catch (error: any) {
     console.error('Data pull error:', error);
@@ -242,7 +277,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Read-only subscriber dashboard. Saves bypassed.' }, { status: 200 });
     }
 
-    const { subscribers, kuries, auctions, payments } = await request.json();
+    const { subscribers, kuries, auctions, payments, reminders } = await request.json();
 
     // Start database transaction
     await client.query('BEGIN');
@@ -250,6 +285,8 @@ export async function POST(request: Request) {
     // 1. Delete existing records for this user (cascades automatically for kuries -> child tables)
     await client.query('DELETE FROM global_subscribers WHERE user_id = $1', [userId]);
     await client.query('DELETE FROM kuries WHERE user_id = $1', [userId]);
+    // Reminders are cascaded, but let's clear explicitly just in case
+    await client.query('DELETE FROM reminders WHERE kuri_id IN (SELECT id FROM kuries WHERE user_id = $1)', [userId]);
 
     // 2. Insert new Global Subscribers
     if (subscribers && subscribers.length > 0) {
@@ -265,8 +302,8 @@ export async function POST(request: Request) {
     if (kuries && kuries.length > 0) {
       for (const k of kuries) {
         await client.query(
-          `INSERT INTO kuries (id, user_id, name, total_value, duration_months, installment_amount, foreman_commission_percent, start_date, status, current_month) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          `INSERT INTO kuries (id, user_id, name, total_value, duration_months, installment_amount, foreman_commission_percent, start_date, status, current_month, payday) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
           [
             k.id,
             userId,
@@ -277,7 +314,8 @@ export async function POST(request: Request) {
             k.foremanCommissionPercent,
             k.startDate,
             k.status || 'active',
-            k.currentMonth || 1
+            k.currentMonth || 1,
+            k.payday || 10
           ]
         );
 
@@ -337,6 +375,26 @@ export async function POST(request: Request) {
             p.amount,
             p.date || null,
             p.status || 'pending'
+          ]
+        );
+      }
+    }
+
+    // 6. Insert Reminders
+    if (reminders && reminders.length > 0) {
+      for (const r of reminders) {
+        await client.query(
+          `INSERT INTO reminders (id, kuri_id, subscriber_id, month, message, type, date, is_read) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            r.id,
+            r.kuriId,
+            r.subscriberId,
+            r.month,
+            r.message,
+            r.type || 'manual',
+            r.date,
+            r.isRead || false
           ]
         );
       }

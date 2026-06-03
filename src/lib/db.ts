@@ -26,13 +26,6 @@ export async function initDb() {
       );
     `);
 
-    // Self-healing migrations for existing tables
-    await client.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin';
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS uuid VARCHAR(50) UNIQUE;
-    `);
-
-
     // Create Kuries table
     await client.query(`
       CREATE TABLE IF NOT EXISTS kuries (
@@ -45,8 +38,16 @@ export async function initDb() {
         foreman_commission_percent NUMERIC(4, 2) NOT NULL,
         start_date VARCHAR(20) NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'active',
-        current_month INTEGER NOT NULL DEFAULT 1
+        current_month INTEGER NOT NULL DEFAULT 1,
+        payday INTEGER NOT NULL DEFAULT 10
       );
+    `);
+
+    // Self-healing migrations for existing tables
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS uuid VARCHAR(50) UNIQUE;
+      ALTER TABLE kuries ADD COLUMN IF NOT EXISTS payday INTEGER NOT NULL DEFAULT 10;
     `);
 
     // Create Kuri Subscribers (link between Kuri and registered users/members)
@@ -106,6 +107,20 @@ export async function initDb() {
         amount NUMERIC(12, 2) NOT NULL,
         date VARCHAR(20),
         status VARCHAR(20) NOT NULL DEFAULT 'pending'
+      );
+    `);
+
+    // Create Reminders table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reminders (
+        id VARCHAR(50) PRIMARY KEY,
+        kuri_id VARCHAR(50) NOT NULL REFERENCES kuries(id) ON DELETE CASCADE,
+        subscriber_id VARCHAR(50) NOT NULL,
+        month INTEGER NOT NULL,
+        message VARCHAR(255) NOT NULL,
+        type VARCHAR(20) NOT NULL DEFAULT 'manual',
+        date VARCHAR(20) NOT NULL,
+        is_read BOOLEAN NOT NULL DEFAULT FALSE
       );
     `);
 

@@ -41,6 +41,17 @@ export interface Payment {
   status: 'paid' | 'pending';
 }
 
+export interface Reminder {
+  id: string;
+  kuriId: string;
+  subscriberId: string;
+  month: number;
+  message: string;
+  type: 'manual' | 'auto';
+  date: string;
+  isRead?: boolean;
+}
+
 export interface Kuri {
   id: string;
   name: string;
@@ -52,6 +63,7 @@ export interface Kuri {
   status: 'active' | 'completed';
   subscribers: KuriSubscriber[];
   currentMonth: number;
+  payday?: number; // E.g. day of month (1-31), defaults to 10
 }
 
 // Default Global Subscribers Pool
