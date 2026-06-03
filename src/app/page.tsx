@@ -55,6 +55,8 @@ import {
 } from './mockData';
 
 export default function Home() {
+  // --- MOBILE UI STATE ---
+  const [showProfileDrawer, setShowProfileDrawer] = useState(false);
   // --- NAVIGATION STATE ---
   // landing: Ultra-minimal landing page
   // auth: Signup or Login card
@@ -1458,33 +1460,37 @@ export default function Home() {
   // --- STATE 3: THE PRIVATE DASHBOARD ---
   // =====================================
   return (
-    <div className="flex-1 flex flex-col pb-16 bg-zinc-950 text-white min-h-screen">
+    <div className="flex-1 flex flex-col pb-20 lg:pb-6 bg-zinc-950 text-white min-h-screen">
       
       {/* HEADER */}
-      <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/5 py-4 px-6 md:px-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-sky-400 p-[1px] flex items-center justify-center glow-indigo">
-              <div className="h-full w-full rounded-[11px] bg-zinc-950 flex items-center justify-center">
-                <Layers className="h-5 w-5 text-indigo-400" />
+      <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/5 py-3 px-4 sm:px-6 md:px-8">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-sky-400 p-[1px] flex items-center justify-center glow-indigo shrink-0 relative">
+              <div className="h-full w-full rounded-[10px] sm:rounded-[11px] bg-zinc-950 flex items-center justify-center">
+                <Layers className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-400" />
               </div>
+              {/* Sync dot indicator on mobile */}
+              <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-zinc-950 sm:hidden ${
+                syncStatus === 'synced' ? 'bg-emerald-400' : syncStatus === 'syncing' ? 'bg-indigo-400 animate-pulse' : syncStatus === 'error' ? 'bg-rose-400' : 'bg-zinc-600'
+              }`} />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+                <span className="text-lg sm:text-xl font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent truncate">
                   Kuri Tracker
                 </span>
-                <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <span className="text-[9px] sm:text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
                   PRO
                 </span>
               </div>
-              <p className="text-xs text-zinc-500 font-medium">Neon PostgreSQL Managed Kuri Tracker</p>
+              <p className="text-[10px] sm:text-xs text-zinc-500 font-medium hidden sm:block">Neon PostgreSQL Managed Kuri Tracker</p>
             </div>
           </div>
 
-          {/* Sync & User Indicators */}
-          <div className="flex items-center flex-wrap gap-4 text-xs">
-            {/* Sync Badge */}
+          {/* Desktop: Full sync + user indicators */}
+          <div className="hidden md:flex items-center flex-wrap gap-3 text-xs">
             {syncStatus === 'synced' && (
               <div className="flex items-center gap-1.5 bg-emerald-500/5 px-3 py-1.5 rounded-lg border border-emerald-500/15 text-emerald-400 font-semibold" title={`Last synced to Neon AWS DB: ${lastSynced}`}>
                 <Cloud className="h-3.5 w-3.5" />
@@ -1503,10 +1509,7 @@ export default function Home() {
                 <span>Sync Error</span>
               </div>
             )}
-
-            {/* Profile Sign-out */}
-            {/* Delete Account Button */}
-{user && <DeleteAccountSection userId={user.id} />}
+            {user && <DeleteAccountSection userId={user.id} />}
             {user && (
               <div className="flex items-center gap-3 bg-zinc-900/60 pl-3 pr-1 py-1 rounded-xl border border-zinc-800">
                 <div className="flex items-center gap-1.5">
@@ -1523,14 +1526,62 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {/* Mobile: Profile avatar button */}
+          {user && (
+            <button
+              onClick={() => setShowProfileDrawer(!showProfileDrawer)}
+              className="md:hidden h-9 w-9 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-sm font-bold shrink-0"
+            >
+              {user.name.charAt(0).toUpperCase()}
+            </button>
+          )}
         </div>
+
+        {/* Mobile profile drawer */}
+        {showProfileDrawer && user && (
+          <div className="md:hidden mt-3 p-4 rounded-xl bg-zinc-900/90 border border-zinc-800 animate-fade-in space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4 text-indigo-400" />
+                <span className="text-sm text-zinc-200 font-bold">{user.name}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {syncStatus === 'synced' && (
+                  <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1"><Cloud className="h-3 w-3" /> Synced</span>
+                )}
+                {syncStatus === 'syncing' && (
+                  <span className="text-[10px] text-indigo-400 font-semibold animate-pulse">Syncing...</span>
+                )}
+                {syncStatus === 'error' && (
+                  <span className="text-[10px] text-rose-400 font-semibold">Error</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <DeleteAccountSection userId={user.id} />
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sign Out
+              </button>
+            </div>
+          </div>
+        )}
       </header>
+
+      {/* Click-away overlay for profile drawer */}
+      {showProfileDrawer && (
+        <div className="profile-drawer-overlay md:hidden" onClick={() => setShowProfileDrawer(false)} />
+      )}
 
       {/* DASHBOARD CONTAINER */}
       <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-6 flex-1 flex flex-col lg:flex-row gap-6">
         
         {/* SIDEBAR TABS */}
-        <nav className="flex lg:flex-col gap-2 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-60 shrink-0 border-b lg:border-b-0 lg:border-r border-zinc-800/80 pr-0 lg:pr-6 scrollbar-thin">
+        {/* SIDEBAR TABS — Desktop only */}
+        <nav className="hidden lg:flex lg:flex-col gap-2 w-60 shrink-0 border-r border-zinc-800/80 pr-6">
           <button
             onClick={() => { setActiveTab('dashboard'); setSelectedKuriId(null); }}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
@@ -1568,7 +1619,7 @@ export default function Home() {
             </button>
           )}
 
-          <div className="hidden lg:block mt-8 p-4 rounded-2xl bg-zinc-900/30 border border-emerald-500/20 text-left space-y-2 shadow-lg shadow-emerald-500/5">
+          <div className="mt-8 p-4 rounded-2xl bg-zinc-900/30 border border-emerald-500/20 text-left space-y-2 shadow-lg shadow-emerald-500/5">
             <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-400 uppercase tracking-widest">
               <ShieldCheck className="h-4.5 w-4.5 text-emerald-400" />
               Secured by Neon
@@ -1686,32 +1737,32 @@ export default function Home() {
               )}
 
               {/* Top Banner */}
-              <div className="p-6 rounded-2xl bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-indigo-950/20 border border-zinc-800 relative overflow-hidden">
+              <div className="p-4 sm:p-6 rounded-2xl bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-indigo-950/20 border border-zinc-800 relative overflow-hidden">
                 <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
                   <div>
-                    <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2 animate-float">
-                      Welcome to Kuri Tracker, {user?.name}!
-                      <Sparkles className="h-5 w-5 text-amber-400 animate-pulse" />
+                    <h2 className="text-lg sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                      Welcome, {user?.name}!
+                      <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-amber-400 animate-pulse" />
                     </h2>
-                    <p className="text-zinc-400 text-sm mt-1 max-w-xl">
-                      Organize members, schedule auctions, distribute dividends automatically, and monitor collections instantly in one premium glass dashboard.
+                    <p className="text-zinc-400 text-xs sm:text-sm mt-1 max-w-xl">
+                      Manage schemes, run auctions, and track collections in one dashboard.
                     </p>
                   </div>
                   {user?.role !== 'member' && (
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                       <button
                         onClick={() => setIsKuriModalOpen(true)}
-                        className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-sm rounded-xl transition-all shadow-md shadow-indigo-600/15 flex items-center gap-2"
+                        className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs sm:text-sm rounded-xl transition-all shadow-md shadow-indigo-600/15 flex items-center gap-1.5 sm:gap-2"
                       >
-                        <Plus className="h-4 w-4" /> Create Kuri Scheme
+                        <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Create</span> Scheme
                       </button>
                       {unlockedUuids.length > 0 && (
                         <button
                           onClick={() => setIsSubscriberModalOpen(true)}
-                          className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-sm rounded-xl border border-zinc-700 transition-colors flex items-center gap-2"
+                          className="px-3 sm:px-4 py-2 sm:py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-xs sm:text-sm rounded-xl border border-zinc-700 transition-colors flex items-center gap-1.5 sm:gap-2"
                         >
-                          <UserPlus className="h-4 w-4" /> Add Subscriber
+                          <UserPlus className="h-4 w-4" /> <span className="hidden sm:inline">Add</span> Subscriber
                         </button>
                       )}
                     </div>
@@ -1766,59 +1817,59 @@ export default function Home() {
               )}
 
               {/* Stats Counters Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
-                  <div className="absolute top-3 right-3 text-indigo-400/20 group-hover:text-indigo-400/30 transition-colors">
-                    <Building className="h-8 w-8" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl glass-card relative overflow-hidden group">
+                  <div className="absolute top-2 right-2 sm:top-3 sm:right-3 text-indigo-400/20 group-hover:text-indigo-400/30 transition-colors">
+                    <Building className="h-5 w-5 sm:h-8 sm:w-8" />
                   </div>
-                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total Value Managed</span>
-                  <h3 className="text-2xl font-bold text-white mt-1.5 tracking-tight font-mono">
+                  <span className="text-[10px] sm:text-xs font-semibold text-zinc-500 uppercase tracking-wider leading-tight">Total Value</span>
+                  <h3 className="text-base sm:text-2xl font-bold text-white mt-1 sm:mt-1.5 tracking-tight font-mono">
                     ₹{dashboardStats.totalFUM.toLocaleString('en-IN')}
                   </h3>
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <span className="text-[10px] font-semibold text-indigo-400 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/10">
+                  <div className="flex items-center gap-1.5 mt-1.5 sm:mt-2">
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-indigo-400 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/10">
                       {dashboardStats.activeKuriesCount} Schemes
                     </span>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
-                  <div className="absolute top-3 right-3 text-emerald-400/20 group-hover:text-emerald-400/30 transition-colors">
-                    <TrendingUp className="h-8 w-8" />
+                <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl glass-card relative overflow-hidden group">
+                  <div className="absolute top-2 right-2 sm:top-3 sm:right-3 text-emerald-400/20 group-hover:text-emerald-400/30 transition-colors">
+                    <TrendingUp className="h-5 w-5 sm:h-8 sm:w-8" />
                   </div>
-                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total Dividends Distributed</span>
-                  <h3 className="text-2xl font-bold text-emerald-400 mt-1.5 tracking-tight font-mono">
+                  <span className="text-[10px] sm:text-xs font-semibold text-zinc-500 uppercase tracking-wider leading-tight">Dividends</span>
+                  <h3 className="text-base sm:text-2xl font-bold text-emerald-400 mt-1 sm:mt-1.5 tracking-tight font-mono">
                     ₹{dashboardStats.totalDividends.toLocaleString('en-IN')}
                   </h3>
-                  <div className="flex items-center gap-1 mt-2 text-xs text-zinc-400 font-medium">
+                  <div className="hidden sm:flex items-center gap-1 mt-2 text-xs text-zinc-400 font-medium">
                     <span className="text-emerald-400">✨ Sub-yield optimized</span>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
-                  <div className="absolute top-3 right-3 text-indigo-400/20 group-hover:text-indigo-400/30 transition-colors">
-                    <Users className="h-8 w-8" />
+                <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl glass-card relative overflow-hidden group">
+                  <div className="absolute top-2 right-2 sm:top-3 sm:right-3 text-indigo-400/20 group-hover:text-indigo-400/30 transition-colors">
+                    <Users className="h-5 w-5 sm:h-8 sm:w-8" />
                   </div>
-                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Registered Subscribers</span>
-                  <h3 className="text-2xl font-bold text-white mt-1.5 tracking-tight font-mono">
+                  <span className="text-[10px] sm:text-xs font-semibold text-zinc-500 uppercase tracking-wider leading-tight">Subscribers</span>
+                  <h3 className="text-base sm:text-2xl font-bold text-white mt-1 sm:mt-1.5 tracking-tight font-mono">
                     {subscribers.length}
                   </h3>
-                  <div className="flex items-center gap-1.5 mt-2 text-xs text-zinc-500">
+                  <div className="hidden sm:flex items-center gap-1.5 mt-2 text-xs text-zinc-500">
                     <span>Active global registry pool</span>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
-                  <div className="absolute top-3 right-3 text-sky-400/20 group-hover:text-sky-400/30 transition-colors">
-                    <CheckCircle className="h-8 w-8" />
+                <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl glass-card relative overflow-hidden group">
+                  <div className="absolute top-2 right-2 sm:top-3 sm:right-3 text-sky-400/20 group-hover:text-sky-400/30 transition-colors">
+                    <CheckCircle className="h-5 w-5 sm:h-8 sm:w-8" />
                   </div>
-                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Month Collection Rate</span>
-                  <h3 className="text-2xl font-bold text-sky-400 mt-1.5 tracking-tight font-mono">
+                  <span className="text-[10px] sm:text-xs font-semibold text-zinc-500 uppercase tracking-wider leading-tight">Collection Rate</span>
+                  <h3 className="text-base sm:text-2xl font-bold text-sky-400 mt-1 sm:mt-1.5 tracking-tight font-mono">
                     {dashboardStats.collectionRate}%
                   </h3>
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="w-full bg-zinc-800 rounded-full h-1.5">
-                      <div className="bg-sky-400 h-1.5 rounded-full" style={{ width: `${dashboardStats.collectionRate}%` }}></div>
+                  <div className="flex items-center gap-2 mt-1.5 sm:mt-2">
+                    <div className="w-full bg-zinc-800 rounded-full h-1 sm:h-1.5">
+                      <div className="bg-sky-400 h-1 sm:h-1.5 rounded-full" style={{ width: `${dashboardStats.collectionRate}%` }}></div>
                     </div>
                   </div>
                 </div>
@@ -1826,16 +1877,16 @@ export default function Home() {
 
               {/* Inflow chart split */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 p-6 rounded-2xl glass-panel space-y-4">
+                <div className="lg:col-span-2 p-4 sm:p-6 rounded-2xl glass-panel space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                        Installment Inflow Analysis
-                        <span title="Comparison of expected collections vs actually collected payments across monthly installments.">
+                      <h3 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
+                        Inflow Analysis
+                        <span className="hidden sm:inline" title="Comparison of expected collections vs actually collected payments across monthly installments.">
                           <Info className="h-4 w-4 text-zinc-500 cursor-help" />
                         </span>
                       </h3>
-                      <p className="text-xs text-zinc-400">Total cash inflows for the months of 2026</p>
+                      <p className="text-[10px] sm:text-xs text-zinc-400">Cash inflows for 2026</p>
                     </div>
                     
                     <div className="flex items-center gap-4 text-xs font-medium">
@@ -1915,22 +1966,23 @@ export default function Home() {
               </div>
 
               {/* Transactions logs */}
-              <div className="p-6 rounded-2xl glass-panel space-y-4">
+              <div className="p-4 sm:p-6 rounded-2xl glass-panel space-y-4">
                 <div>
-                  <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
                     <History className="h-4.5 w-4.5 text-indigo-400" />
-                    Recent Live Activity Ledger
+                    Recent Activity
                   </h3>
-                  <p className="text-xs text-zinc-400">Latest recorded auctions and payments in the system</p>
+                  <p className="text-[10px] sm:text-xs text-zinc-400">Latest auctions and payments</p>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Desktop table */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-zinc-800 text-[11px] uppercase tracking-wider text-zinc-500 font-bold">
                         <th className="pb-3 pl-2">Event Type</th>
                         <th className="pb-3">Details</th>
-                        <th className="pb-3">Transaction Date</th>
+                        <th className="pb-3">Date</th>
                         <th className="pb-3 text-right pr-2">Amount</th>
                       </tr>
                     </thead>
@@ -1941,7 +1993,7 @@ export default function Home() {
                             {act.type === 'auction' ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">Auction Prized</span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">Subscription Contribution</span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-semibold">Contribution</span>
                             )}
                           </td>
                           <td className="py-3 font-semibold text-zinc-200">
@@ -1956,11 +2008,37 @@ export default function Home() {
                       ))}
                       {recentActivities.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="py-8 text-center text-zinc-500">No activities logged yet. Get started by executing an auction!</td>
+                          <td colSpan={4} className="py-8 text-center text-zinc-500 text-xs">No activities yet. Execute an auction to get started!</td>
                         </tr>
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-2.5">
+                  {recentActivities.map((act) => (
+                    <div key={act.id} className="mobile-activity-card">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        {act.type === 'auction' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold">Auction</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-semibold">Payment</span>
+                        )}
+                        <span className="font-mono font-bold text-sm text-white">₹{act.amount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <p className="text-xs font-semibold text-zinc-200">{act.title}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[10px] text-zinc-500">{act.desc}</span>
+                        <span className="text-[10px] text-zinc-500 font-medium">
+                          {act.date ? new Date(act.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {recentActivities.length === 0 && (
+                    <div className="py-6 text-center text-zinc-500 text-xs">No activities yet.</div>
+                  )}
                 </div>
               </div>
 
@@ -1991,7 +2069,7 @@ export default function Home() {
                     {kuries.map(k => {
                       const progressPct = Math.round((Number(k.currentMonth) / Number(k.durationMonths)) * 100);
                       return (
-                        <div key={k.id} className="rounded-2xl glass-card p-5 flex flex-col justify-between h-[230px]">
+                        <div key={k.id} className="rounded-2xl glass-card p-4 sm:p-5 flex flex-col justify-between">
                           <div>
                             <div className="flex justify-between items-start gap-2">
                               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Month {k.currentMonth}/{k.durationMonths}</span>
@@ -2100,7 +2178,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Pool Value</span>
                       <h4 className="text-lg font-bold text-white mt-1 font-mono">₹{Number(selectedKuri.totalValue).toLocaleString('en-IN')}</h4>
@@ -2123,19 +2201,20 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="p-6 rounded-2xl glass-panel space-y-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="p-4 sm:p-6 rounded-2xl glass-panel space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">Interactive Collection Ledger Matrix</h3>
-                        <p className="text-xs text-zinc-400">Click a grey column installment button to mark payment as Paid</p>
+                        <h3 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-1.5">Collection Ledger</h3>
+                        <p className="text-[10px] sm:text-xs text-zinc-400">Tap a pending pill to mark as Paid</p>
                       </div>
-                      <div className="inline-flex lg:hidden items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-900/60 border border-zinc-800 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                      <div className="hidden md:inline-flex lg:hidden items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-900/60 border border-zinc-800 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
                         <span>Swipe months horizontally</span>
                         <span className="animate-bounce">👉</span>
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto border border-zinc-800 rounded-xl scrollbar-thin">
+                    {/* Desktop: Table view */}
+                    <div className="hidden md:block overflow-x-auto border border-zinc-800 rounded-xl scrollbar-thin">
                       <table className="w-full text-left border-collapse whitespace-nowrap">
                         <thead>
                           <tr className="bg-zinc-900/80 border-b border-zinc-800 text-[11px] uppercase tracking-wider text-zinc-500 font-bold">
@@ -2157,7 +2236,7 @@ export default function Home() {
                               </td>
                               <td className="py-3 px-4">
                                 {row.isPrized ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">Month {row.prizedMonth} Winning</span>
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">Month {row.prizedMonth}</span>
                                 ) : (
                                   <span className="text-xs text-zinc-600 font-medium">Non-Prized</span>
                                 )}
@@ -2166,7 +2245,6 @@ export default function Home() {
                                 const pay = row.paymentsMap[m];
                                 if (!pay) return <td key={m} className="py-3 px-4 text-center text-xs text-zinc-700">-</td>;
                                 const isPaid = pay.status === 'paid';
-
                                 return (
                                   <td key={m} onClick={() => togglePaymentStatus(pay.id)} className="py-3 px-4 text-center cursor-pointer select-none transition-all group">
                                     <div className={`mx-auto w-24 py-1.5 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${isPaid ? 'bg-emerald-500/5 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5' : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:border-indigo-500 hover:text-indigo-400'}`}>
@@ -2179,6 +2257,50 @@ export default function Home() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Mobile: Card-based ledger */}
+                    <div className="md:hidden space-y-3">
+                      {ledgerData.rows.map((row) => (
+                        <div key={row.subscriberId} className="mobile-ledger-card">
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 shrink-0">#{row.ticketNumber}</span>
+                              <span className="text-xs font-semibold text-zinc-200 truncate">{row.name}</span>
+                            </div>
+                            {row.isPrized ? (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">Won M{row.prizedMonth}</span>
+                            ) : (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 shrink-0">Active</span>
+                            )}
+                          </div>
+                          <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+                            {ledgerData.months.map(m => {
+                              const pay = row.paymentsMap[m];
+                              if (!pay) return (
+                                <div key={m} className="mobile-month-pill pending opacity-30" style={{minWidth: '56px'}}>
+                                  <span className="text-[10px]">M{m}</span>
+                                </div>
+                              );
+                              const isPaid = pay.status === 'paid';
+                              return (
+                                <button
+                                  key={m}
+                                  onClick={() => togglePaymentStatus(pay.id)}
+                                  className={`mobile-month-pill ${isPaid ? 'paid' : 'pending'}`}
+                                  style={{minWidth: '56px'}}
+                                >
+                                  {isPaid ? (
+                                    <><CheckCircle className="h-3 w-3" /><span className="text-[10px]">M{m}</span></>
+                                  ) : (
+                                    <><Clock className="h-3 w-3" /><span className="text-[10px]">M{m}</span></>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -2583,6 +2705,34 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <div className="mobile-bottom-nav lg:hidden">
+        <div className="flex items-stretch">
+          <button
+            onClick={() => { setActiveTab('dashboard'); setSelectedKuriId(null); setShowProfileDrawer(false); }}
+            className={activeTab === 'dashboard' ? 'active' : ''}
+          >
+            <Layers className="h-5 w-5" />
+            <span>Overview</span>
+          </button>
+          <button
+            onClick={() => { setActiveTab('kuries'); setShowProfileDrawer(false); }}
+            className={activeTab === 'kuries' ? 'active' : ''}
+          >
+            <Building className="h-5 w-5" />
+            <span>Schemes</span>
+          </button>
+          {user?.role !== 'member' && unlockedUuids.length > 0 && (
+            <button
+              onClick={() => { setActiveTab('subscribers'); setSelectedKuriId(null); setShowProfileDrawer(false); }}
+              className={activeTab === 'subscribers' ? 'active' : ''}
+            >
+              <Users className="h-5 w-5" />
+              <span>Members</span>
+            </button>
+          )}
+        </div>
+      </div>
 
     </div>
   );

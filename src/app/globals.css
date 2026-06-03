@@ -28,6 +28,7 @@
   --border: #27272a;
   --input: #27272a;
   --ring: #6366f1;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 body {
@@ -40,6 +41,7 @@ body {
     radial-gradient(at 50% 0%, rgba(14, 165, 233, 0.05) 0px, transparent 50%),
     radial-gradient(at 100% 0%, rgba(244, 63, 94, 0.05) 0px, transparent 50%);
   background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Glassmorphism Styles */
@@ -66,6 +68,13 @@ body {
   transform: translateY(-2px);
 }
 
+/* Disable hover transform on touch devices */
+@media (hover: none) {
+  .glass-card:hover {
+    transform: none;
+  }
+}
+
 .glass-input {
   background: rgba(10, 10, 15, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -81,8 +90,8 @@ body {
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -125,6 +134,36 @@ body {
   animation: float 4s ease-in-out infinite;
 }
 
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
 /* Neon glow */
 .glow-indigo {
   box-shadow: 0 0 20px -3px rgba(99, 102, 241, 0.3);
@@ -136,4 +175,162 @@ body {
 
 .glow-rose {
   box-shadow: 0 0 20px -3px rgba(244, 63, 94, 0.3);
+}
+
+/* ===============================
+   MOBILE BOTTOM NAVIGATION BAR
+   =============================== */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(9, 9, 11, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: var(--safe-bottom);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.mobile-bottom-nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  padding: 8px 4px 6px;
+  min-height: 56px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #71717a;
+  transition: all 0.2s ease;
+  position: relative;
+  border: none;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-bottom-nav button.active {
+  color: #818cf8;
+}
+
+.mobile-bottom-nav button.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 2px;
+  background: #6366f1;
+  border-radius: 0 0 4px 4px;
+}
+
+/* ===============================
+   MOBILE CARD TABLE STYLES
+   =============================== */
+.mobile-ledger-card {
+  background: rgba(24, 24, 27, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.mobile-ledger-card:active {
+  background: rgba(30, 30, 38, 0.8);
+}
+
+.mobile-month-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 72px;
+  min-height: 36px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-month-pill:active {
+  transform: scale(0.95);
+}
+
+.mobile-month-pill.paid {
+  background: rgba(16, 185, 129, 0.08);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.mobile-month-pill.pending {
+  background: rgba(39, 39, 42, 0.6);
+  color: #a1a1aa;
+  border: 1px solid rgba(63, 63, 70, 0.6);
+}
+
+.mobile-month-pill.pending:active {
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #818cf8;
+}
+
+/* Mobile activity card */
+.mobile-activity-card {
+  background: rgba(24, 24, 27, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+/* ===============================
+   TOUCH TARGET ENHANCEMENTS
+   =============================== */
+@media (max-width: 768px) {
+  /* Ensure minimum 44px touch targets */
+  button, 
+  [role="button"],
+  a,
+  select,
+  input[type="checkbox"] {
+    min-height: 44px;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+    min-height: 44px;
+  }
+}
+
+/* Hide scrollbar but keep scroll for month pill containers */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Profile drawer overlay */
+.profile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 45;
+  animation: fade-in 0.2s ease-out;
 }

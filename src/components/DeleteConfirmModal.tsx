@@ -11,7 +11,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({ isOpen, 
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-zinc-900 text-white rounded-xl p-6 w-96 shadow-lg border border-zinc-800">
+      <div className="bg-zinc-900 text-white rounded-xl p-5 sm:p-6 w-[90vw] max-w-sm shadow-lg border border-zinc-800">
         <h2 className="text-lg font-bold mb-4">Confirm Deletion</h2>
         <p className="mb-4">
           Are you sure you want to permanently delete your {resourceName}? This action cannot be undone.
