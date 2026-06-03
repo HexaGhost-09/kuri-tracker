@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { Trash2 } from 'lucide-react';
+import { DeleteConfirmModal } from '@/components/DeleteConfirmModal';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -1500,6 +1502,20 @@ export default function Home() {
             )}
 
             {/* Profile Sign-out */}
+            {/* Delete Account Button */}
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="p-1.5 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+              title="Delete your account"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            <DeleteConfirmModal
+              isOpen={showDeleteModal}
+              onClose={() => setShowDeleteModal(false)}
+              onConfirm={handleDeleteAccount}
+              resourceName="account"
+            />
             {user && (
               <div className="flex items-center gap-3 bg-zinc-900/60 pl-3 pr-1 py-1 rounded-xl border border-zinc-800">
                 <div className="flex items-center gap-1.5">

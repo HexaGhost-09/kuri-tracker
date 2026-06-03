@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pool, initDb } from '@/lib/db';
-import bcrypt from 'bcryptjs';
+import argon2 from 'argon2';
 
 export async function POST(request: Request) {
   try {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await argon2.hash(password, { type: argon2.argon2id, hashLength: 16 });
 
     // Generate a unique 128-bit UUID code
     const userUuid = crypto.randomUUID();

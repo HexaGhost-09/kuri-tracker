@@ -41,6 +41,7 @@ export async function initDb() {
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         current_month INTEGER NOT NULL DEFAULT 1,
         payday INTEGER NOT NULL DEFAULT 10,
+        scheme_uuid UUID NOT NULL DEFAULT gen_random_uuid(),
         deleted_at TIMESTAMP NULL
       );
     `);
@@ -50,6 +51,7 @@ export async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS uuid VARCHAR(50) UNIQUE;
       ALTER TABLE kuries ADD COLUMN IF NOT EXISTS payday INTEGER NOT NULL DEFAULT 10;
+      ALTER TABLE kuries ADD COLUMN IF NOT EXISTS scheme_uuid UUID NOT NULL DEFAULT gen_random_uuid();
     `);
 
     // Create Kuri Subscribers (link between Kuri and registered users/members)
@@ -74,6 +76,15 @@ export async function initDb() {
         phone VARCHAR(20),
         email VARCHAR(100),
         member_uuid VARCHAR(50)
+      );
+
+      CREATE TABLE IF NOT EXISTS scheme_join_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kuri_id VARCHAR(50) NOT NULL REFERENCES kuries(id) ON DELETE CASCADE,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        approved_at TIMESTAMP NULL
       );
     `);
 

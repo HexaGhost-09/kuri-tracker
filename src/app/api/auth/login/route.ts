@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pool, initDb } from '@/lib/db';
-import bcrypt from 'bcryptjs';
+import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'kuriflow_auth_secret_token_key_1199';
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const user = result.rows[0];
 
     // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await argon2.verify(user.password, password);
     if (!isPasswordValid) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
