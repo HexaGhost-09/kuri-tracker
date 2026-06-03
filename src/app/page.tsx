@@ -1273,84 +1273,60 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col justify-between relative overflow-hidden">
         
-        {/* Glow ambient background elements */}
-        <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-indigo-500/10 via-transparent to-transparent pointer-events-none z-0" />
+        {/* Premium ambient backdrop glow */}
+        <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-violet-600/15 via-transparent to-transparent pointer-events-none z-0" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-violet-500/10 rounded-full filter blur-[100px] pointer-events-none z-0" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-fuchsia-500/5 rounded-full filter blur-[100px] pointer-events-none z-0" />
         
         {/* Simple minimal header */}
-        <header className="w-full max-w-7xl mx-auto py-8 px-6 md:px-8 flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-indigo-500/10 p-[1px] flex items-center justify-center border border-indigo-500/20">
-              <Layers className="h-4.5 w-4.5 text-indigo-400" />
+        <header className="w-full max-w-7xl mx-auto py-6 px-6 md:px-8 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-violet-500/10 p-[1px] flex items-center justify-center border border-violet-500/20">
+              <Layers className="h-5 w-5 text-violet-400" />
             </div>
-            <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+            <span className="text-xl font-black tracking-tight bg-gradient-to-r from-white via-zinc-100 to-violet-300 bg-clip-text text-transparent">
               Kuri Tracker
             </span>
           </div>
         </header>
 
         {/* Minimal content hero */}
-        <main className="max-w-4xl mx-auto w-full px-6 flex-1 flex flex-col items-center justify-center text-center relative z-10 space-y-8 mt-[-40px]">
+        <main className="max-w-3xl mx-auto w-full px-6 flex-1 flex flex-col items-center justify-center text-center relative z-10 space-y-8 my-auto py-12">
           
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/5 text-indigo-400 border border-indigo-500/15 text-[11px] font-bold tracking-wider uppercase">
-              <Sparkles className="h-3 w-3 animate-pulse" /> Neon Cloud Authentication
+          <div className="space-y-5 animate-fade-in">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/25 text-[10px] sm:text-[11px] font-extrabold tracking-wider uppercase mx-auto">
+              <Sparkles className="h-3 w-3 animate-pulse text-violet-400" /> Smart Chitty & Kuri Ledger
             </div>
             
-            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight bg-gradient-to-b from-white to-zinc-400 bg-clip-text text-transparent leading-none py-1">
+            <h1 className="text-4xl sm:text-7xl font-black tracking-tight bg-gradient-to-b from-white via-white to-zinc-500 bg-clip-text text-transparent leading-tight py-1">
               Kuri Tracker
             </h1>
             
-            <p className="text-zinc-400 text-sm sm:text-lg max-w-2xl mx-auto leading-relaxed">
-              Schedule monthly auctions, distribute dividends instantly, and manage enrolled subscriber ledger matrix. Backed by transactional AWS Neon PostgreSQL synchronization.
+            <p className="text-zinc-400 text-sm sm:text-lg max-w-xl mx-auto leading-relaxed font-medium">
+              A modern chitty ledger system. Schedule monthly auctions, distribute dividends instantly, and manage your subscribers inside a highly responsive digital ledger.
             </p>
           </div>
 
-          <div className="flex flex-col items-center gap-4">
+          <div className="w-full max-w-md flex flex-col items-center gap-5 pt-4">
             <button
               onClick={() => { setAuthTab('login'); setPageState('auth'); }}
-              className="px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-lg shadow-indigo-600/15 flex items-center gap-2 group animate-float border border-white/5"
+              className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-bold text-sm tracking-wider uppercase rounded-2xl transition-all shadow-xl shadow-violet-600/25 hover:shadow-violet-600/40 flex items-center justify-center gap-2 group border border-white/10 active:scale-[0.98]"
             >
-              Access Application
+              Get Started Now
               <ArrowRight className="h-4.5 w-4.5 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-950/80 border border-emerald-500/15 text-[10px] text-emerald-400 font-bold uppercase tracking-widest shadow-lg shadow-emerald-500/5">
-              <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              Secured by Neon
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/80 border border-emerald-500/20 text-[10px] text-emerald-400 font-extrabold uppercase tracking-widest shadow-lg shadow-emerald-500/5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+              Secured with Neon DB
             </div>
           </div>
 
-          {/* Simple bullet points */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-12 max-w-3xl w-full">
-            <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800/40 text-left space-y-2">
-              <div className="h-7 w-7 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                <Cloud className="h-4 w-4" />
-              </div>
-              <h4 className="text-xs font-bold text-white">Neon Cloud Sync</h4>
-              <p className="text-[11px] text-zinc-500 leading-normal">Stateless secure data persistence sandboxed to your credentials.</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800/40 text-left space-y-2">
-              <div className="h-7 w-7 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                <Calculator className="h-4 w-4" />
-              </div>
-              <h4 className="text-xs font-bold text-white">Compound ROI Sim</h4>
-              <p className="text-[11px] text-zinc-500 leading-normal">Estimate compound chitty returns, monthly yields and net IRR.</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800/40 text-left space-y-2">
-              <div className="h-7 w-7 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                <Users className="h-4 w-4" />
-              </div>
-              <h4 className="text-xs font-bold text-white">Subscriber Registry</h4>
-              <p className="text-[11px] text-zinc-500 leading-normal">Interactive grid matrix to easily toggle payment collections.</p>
-            </div>
-          </div>
         </main>
 
         {/* Minimal Footer */}
-        <footer className="w-full max-w-7xl mx-auto py-8 px-6 text-center text-xs text-zinc-600 relative z-10 border-t border-zinc-900">
-          <p>© {new Date().getFullYear()} Kuri Tracker , All rights reserved.</p>
+        <footer className="w-full max-w-7xl mx-auto py-6 px-6 text-center text-[11px] text-zinc-500 relative z-10 border-t border-zinc-900/60">
+          <p>© {new Date().getFullYear()} Kuri Tracker. All rights reserved.</p>
         </footer>
       </div>
     );
@@ -1364,28 +1340,32 @@ export default function Home() {
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-4 relative overflow-hidden">
         
         {/* Radial backdrop */}
-        <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent pointer-events-none z-0" />
+        <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-violet-500/10 via-transparent to-transparent pointer-events-none z-0" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-violet-500/10 rounded-full filter blur-[100px] pointer-events-none z-0" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-fuchsia-500/5 rounded-full filter blur-[100px] pointer-events-none z-0" />
 
-        <div className="w-full max-w-md rounded-2xl glass-panel p-8 space-y-6 relative border border-white/10 z-10 shadow-2xl shadow-indigo-500/5">
+        <div className="w-full max-w-md rounded-3xl glass-panel p-6 sm:p-8 space-y-6 relative border border-white/10 z-10 shadow-2xl shadow-violet-500/5">
           
           <button
             onClick={() => setPageState('landing')}
-            className="absolute top-4 left-4 text-xs font-semibold text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors"
+            className="absolute top-4 left-4 text-xs font-bold text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back
           </button>
 
-          <div className="text-center space-y-2">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-sky-400 p-[1px] flex items-center justify-center mx-auto glow-indigo animate-float">
-              <div className="h-full w-full rounded-[9px] bg-zinc-950 flex items-center justify-center">
-                <Layers className="h-5 w-5 text-indigo-400" />
+          <div className="text-center space-y-2 pt-2">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-violet-500 to-fuchsia-400 p-[1px] flex items-center justify-center mx-auto shadow-lg shadow-violet-500/20 animate-float">
+              <div className="h-full w-full rounded-[15px] bg-zinc-950 flex items-center justify-center">
+                <Layers className="h-6 w-6 text-violet-400" />
               </div>
             </div>
-            <h2 className="text-xl font-bold tracking-tight text-white mt-3">
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-3">
               {authTab === 'login' ? 'Sign In to KuriFlow' : 'Create KuriFlow Account'}
             </h2>
-            <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Neon PostgreSQL Authenticated</p>
-<p className="text-xs text-green-400 mt-1">Passwords are now stored using Argon2, which provides strong, memory‑hard, zero‑knowledge protection with a 128‑bit hash length.</p>
+            <p className="text-[10px] text-violet-400 font-bold uppercase tracking-wider">Neon PostgreSQL Authenticated</p>
+            <p className="text-[11px] text-green-400/90 mt-1 max-w-sm mx-auto leading-relaxed">
+              Passwords are secure with zero‑knowledge Argon2 protection.
+            </p>
           </div>
 
           {/* Toggle Tab */}
@@ -1393,9 +1373,9 @@ export default function Home() {
             <button
               type="button"
               onClick={() => { setAuthTab('login'); setAuthError(''); }}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 py-2 text-xs font-extrabold rounded-lg transition-all ${
                 authTab === 'login' 
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
+                  ? 'bg-gradient-to-r from-violet-600 to-violet-500 text-white shadow-md' 
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -1404,9 +1384,9 @@ export default function Home() {
             <button
               type="button"
               onClick={() => { setAuthTab('signup'); setAuthError(''); }}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              className={`flex-1 py-2 text-xs font-extrabold rounded-lg transition-all ${
                 authTab === 'signup' 
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
+                  ? 'bg-gradient-to-r from-violet-600 to-violet-500 text-white shadow-md' 
                   : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -1416,7 +1396,7 @@ export default function Home() {
 
           {/* Error display */}
           {authError && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-xs text-rose-400">
+            <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2 text-xs text-rose-400">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span className="font-semibold">{authError}</span>
             </div>
@@ -1429,14 +1409,14 @@ export default function Home() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400">Full Name</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
+                    <User className="absolute left-3 top-2.5 h-4 w-4 text-zinc-650" />
                     <input
                       type="text"
                       required
                       placeholder="e.g. Ramesh Pillai"
                       value={authName}
                       onChange={(e) => setAuthName(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
+                      className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-750 focus:outline-none focus:border-violet-500"
                     />
                   </div>
                 </div>
@@ -1449,7 +1429,7 @@ export default function Home() {
                       onClick={() => setAuthRole('admin')}
                       className={`py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 ${
                         authRole === 'admin'
-                          ? 'bg-indigo-600 text-white shadow-md'
+                          ? 'bg-violet-600 text-white shadow-md'
                           : 'text-zinc-500 hover:text-zinc-300'
                       }`}
                     >
@@ -1460,17 +1440,13 @@ export default function Home() {
                       onClick={() => setAuthRole('member')}
                       className={`py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 ${
                         authRole === 'member'
-                          ? 'bg-indigo-600 text-white shadow-md'
+                          ? 'bg-violet-600 text-white shadow-md'
                           : 'text-zinc-500 hover:text-zinc-300'
                       }`}
                     >
                       Member
                     </button>
                   </div>
-                  <p className="text-[9px] text-zinc-500 leading-normal px-1">
-                    {authRole === 'admin' && 'Organize group saving pools, run monthly auctions, add subscribers.'}
-                    {authRole === 'member' && 'Read-only dashboard view linked to a group admin via UUID.'}
-                  </p>
                 </div>
               </>
             )}
@@ -1478,14 +1454,14 @@ export default function Home() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-zinc-400">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
+                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-zinc-650" />
                 <input
                   type="email"
                   required
                   placeholder="e.g. ramesh@gmail.com"
                   value={authEmail}
                   onChange={(e) => setAuthEmail(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
+                  className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-750 focus:outline-none focus:border-violet-500"
                 />
               </div>
             </div>
@@ -1493,14 +1469,14 @@ export default function Home() {
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-zinc-400">Password</label>
               <div className="relative">
-                <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-zinc-600" />
+                <KeyRound className="absolute left-3 top-2.5 h-4 w-4 text-zinc-650" />
                 <input
                   type="password"
                   required
                   placeholder="••••••••"
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500"
+                  className="w-full pl-9 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-750 focus:outline-none focus:border-violet-500"
                 />
               </div>
             </div>
@@ -1508,7 +1484,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={authLoading}
-              className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-zinc-850 disabled:to-zinc-850 disabled:text-zinc-600 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+              className="w-full py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:from-zinc-850 disabled:to-zinc-850 disabled:text-zinc-600 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
             >
               {authLoading ? (
                 <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
@@ -1525,7 +1501,7 @@ export default function Home() {
 
             {/* Neon Security Badge */}
             <div className="pt-3 border-t border-zinc-900 flex justify-center">
-              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-950/80 border border-emerald-500/15 text-[9px] text-emerald-400 font-extrabold uppercase tracking-wider shadow-sm">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-950/80 border border-emerald-500/20 text-[9px] text-emerald-400 font-extrabold uppercase tracking-wider shadow-sm">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
                 Secured by Neon
               </div>
