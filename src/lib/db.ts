@@ -22,7 +22,8 @@ export async function initDb() {
         password VARCHAR(255) NOT NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'admin',
         uuid VARCHAR(50) UNIQUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP NULL
       );
     `);
 
@@ -39,7 +40,8 @@ export async function initDb() {
         start_date VARCHAR(20) NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         current_month INTEGER NOT NULL DEFAULT 1,
-        payday INTEGER NOT NULL DEFAULT 10
+        payday INTEGER NOT NULL DEFAULT 10,
+        deleted_at TIMESTAMP NULL
       );
     `);
 
