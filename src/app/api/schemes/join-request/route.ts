@@ -155,9 +155,9 @@ export async function PUT(request: Request) {
     // Update status
     await client.query(
       `UPDATE scheme_join_requests 
-       SET status = $1, approved_at = CASE WHEN $1 = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
-       WHERE id = $2`,
-      [status, requestId]
+       SET status = $1, approved_at = CASE WHEN $2 = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
+       WHERE id = $3`,
+      [status, status, requestId]
     );
 
     if (status === 'approved') {
