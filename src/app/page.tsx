@@ -101,8 +101,8 @@ export default function Home() {
   const [newKuriName, setNewKuriName] = useState('');
   const [newKuriTotalValue, setNewKuriTotalValue] = useState(500000);
   const [newKuriDuration, setNewKuriDuration] = useState(10);
-  const [newKuriCommission, setNewKuriCommission] = useState(5);
-  const [isCommissionEnabled, setIsCommissionEnabled] = useState(true);
+  const [newKuriCommission, setNewKuriCommission] = useState(0);
+  const [isCommissionEnabled, setIsCommissionEnabled] = useState(false);
   const [newKuriStartDate, setNewKuriStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedEnrollSubscribers, setSelectedEnrollSubscribers] = useState<string[]>([]);
   
@@ -111,6 +111,31 @@ export default function Home() {
   const [newSubPhone, setNewSubPhone] = useState('');
   const [newSubEmail, setNewSubEmail] = useState('');
   const [newSubMemberUuid, setNewSubMemberUuid] = useState('');
+
+  // Unlocked member UUIDs for admin
+  const [unlockedUuids, setUnlockedUuids] = useState<string[]>([]);
+  const [globalUuidInput, setGlobalUuidInput] = useState('');
+  const [schemeUuidInput, setSchemeUuidInput] = useState('');
+  const [activeSchemeUuidInput, setActiveSchemeUuidInput] = useState('');
+
+  // Load unlocked UUIDs on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('kuri_unlocked_uuids');
+    if (stored) {
+      try {
+        setUnlockedUuids(JSON.parse(stored));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
+  const visibleSubscribers = useMemo(() => {
+    if (user?.role === 'member') {
+      return subscribers;
+    }
+    return subscribers.filter(sub => sub.memberUuid && unlockedUuids.includes(sub.memberUuid));
+  }, [subscribers, unlockedUuids, user]);
   
   // Run Auction Form
   const [auctionWinningBid, setAuctionWinningBid] = useState(400000); 
@@ -387,6 +412,173 @@ export default function Home() {
     }
   };
 
+  const handleUnlockMemberByUuid = async (uuidInput: string) => {
+    try {
+      const response = await fetch(`/api/auth/member-by-uuid?uuid=${uuidInput.trim()}`);
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Invalid Member UUID');
+        return false;
+      }
+      const data = await response.json();
+      const member = data.member; // { name, email, uuid }
+      
+      let updatedUnlocked = [...unlockedUuids];
+      if (!unlockedUuids.includes(member.uuid)) {
+        updatedUnlocked.push(member.uuid);
+        setUnlockedUuids(updatedUnlocked);
+        localStorage.setItem('kuri_unlocked_uuids', JSON.stringify(updatedUnlocked));
+      }
+
+      // Check if subscriber already exists with this uuid
+      const existingSub = subscribers.find(s => s.memberUuid === member.uuid);
+      if (!existingSub) {
+        const newSub: Subscriber = {
+          id: `sub-${Date.now()}`,
+          name: member.name,
+          phone: '+91 99999 00000',
+          email: member.email,
+          memberUuid: member.uuid
+        };
+        const updatedSubs = [...subscribers, newSub];
+        saveState(updatedSubs, kuries, auctions, payments);
+        alert(`Successfully unlocked and registered member: ${member.name}`);
+      } else {
+        alert(`Unlocked member: ${member.name}`);
+      }
+      return true;
+    } catch (err) {
+      console.error(err);
+      alert('Error verifying UUID');
+      return false;
+    }
+  };
+
+  const handleUnlockAndEnrollInScheme = async (uuidVal: string) => {
+    if (!uuidVal.trim()) return;
+    try {
+      const response = await fetch(`/api/auth/member-by-uuid?uuid=${uuidVal.trim()}`);
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Invalid Member UUID');
+        return;
+      }
+      const data = await response.json();
+      const member = data.member;
+
+      let updatedUnlocked = [...unlockedUuids];
+      if (!unlockedUuids.includes(member.uuid)) {
+        updatedUnlocked.push(member.uuid);
+        setUnlockedUuids(updatedUnlocked);
+        localStorage.setItem('kuri_unlocked_uuids', JSON.stringify(updatedUnlocked));
+      }
+
+      let sub = subscribers.find(s => s.memberUuid === member.uuid);
+      let updatedSubs = [...subscribers];
+      if (!sub) {
+        sub = {
+          id: `sub-${Date.now()}`,
+          name: member.name,
+          phone: '+91 99999 00000',
+          email: member.email,
+          memberUuid: member.uuid
+        };
+        updatedSubs.push(sub);
+        saveState(updatedSubs, kuries, auctions, payments);
+      }
+
+      if (!selectedEnrollSubscribers.includes(sub.id)) {
+        setSelectedEnrollSubscribers([...selectedEnrollSubscribers, sub.id]);
+      }
+      setSchemeUuidInput('');
+      alert(`Enrolled: ${member.name}`);
+    } catch (err) {
+      console.error(err);
+      alert('Error verifying UUID');
+    }
+  };
+
+  const handleAddMemberToActiveSchemeByUuid = async (kuriId: string, uuidInput: string) => {
+    if (!uuidInput.trim()) return;
+    try {
+      const response = await fetch(`/api/auth/member-by-uuid?uuid=${uuidInput.trim()}`);
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || 'Invalid Member UUID');
+        return;
+      }
+      const data = await response.json();
+      const member = data.member;
+
+      let updatedUnlocked = [...unlockedUuids];
+      if (!unlockedUuids.includes(member.uuid)) {
+        updatedUnlocked.push(member.uuid);
+        setUnlockedUuids(updatedUnlocked);
+        localStorage.setItem('kuri_unlocked_uuids', JSON.stringify(updatedUnlocked));
+      }
+
+      let sub = subscribers.find(s => s.memberUuid === member.uuid);
+      let updatedSubs = [...subscribers];
+      if (!sub) {
+        sub = {
+          id: `sub-${Date.now()}`,
+          name: member.name,
+          phone: '+91 99999 00000',
+          email: member.email,
+          memberUuid: member.uuid
+        };
+        updatedSubs.push(sub);
+      }
+
+      const kuri = kuries.find(k => k.id === kuriId);
+      if (!kuri) return;
+
+      const alreadyEnrolled = kuri.subscribers.some(ks => ks.subscriberId === sub!.id);
+      if (alreadyEnrolled) {
+        alert('This subscriber is already enrolled in this scheme!');
+        return;
+      }
+
+      const nextTicketNumber = kuri.subscribers.length + 1;
+      const updatedKuriSubscribers: KuriSubscriber[] = [
+        ...kuri.subscribers,
+        {
+          subscriberId: sub.id,
+          ticketNumber: nextTicketNumber,
+          isPrized: false
+        }
+      ];
+
+      const newPayment: Payment = {
+        id: `pay-${Date.now()}-${sub.id}`,
+        kuriId: kuriId,
+        subscriberId: sub.id,
+        month: kuri.currentMonth,
+        amount: kuri.installmentAmount,
+        date: '',
+        status: 'pending'
+      };
+
+      const updatedKuries = kuries.map(k => {
+        if (k.id === kuriId) {
+          return {
+            ...k,
+            subscribers: updatedKuriSubscribers
+          };
+        }
+        return k;
+      });
+
+      const updatedPayments = [...payments, newPayment];
+
+      saveState(updatedSubs, updatedKuries, auctions, updatedPayments);
+      alert(`Successfully enrolled ${member.name} (Ticket #${nextTicketNumber}) into the scheme.`);
+    } catch (err) {
+      console.error(err);
+      alert('Error verifying and enrolling member');
+    }
+  };
+
   // --- COMPUTED DASHBOARD METRICS ---
   const dashboardStats = useMemo(() => {
     const totalFUM = kuries.reduce((sum, k) => sum + Number(k.totalValue), 0);
@@ -494,8 +686,8 @@ export default function Home() {
     setNewKuriName('');
     setNewKuriTotalValue(500000);
     setNewKuriDuration(10);
-    setNewKuriCommission(5);
-    setIsCommissionEnabled(true);
+    setNewKuriCommission(0);
+    setIsCommissionEnabled(false);
     setSelectedEnrollSubscribers([]);
     setIsKuriModalOpen(false);
     setSelectedKuriId(kuriId); 
@@ -509,6 +701,13 @@ export default function Home() {
     
     const k = kuries.find(k => k.id === selectedKuriId);
     if (!k) return;
+
+    // Verify if the subscriber has already won
+    const subInKuri = k.subscribers.find(sub => sub.subscriberId === auctionWinningSubId);
+    if (subInKuri?.isPrized) {
+      alert('This subscriber has already won and cannot win again!');
+      return;
+    }
 
     const currentM = k.currentMonth;
     const totalVal = k.totalValue;
@@ -657,7 +856,7 @@ export default function Home() {
     
     auctions.forEach(a => {
       const k = kuries.find(kuri => kuri.id === a.kuriId);
-      const sub = subscribers.find(s => s.id === a.winningSubscriberId);
+      const sub = visibleSubscribers.find(s => s.id === a.winningSubscriberId);
       if (k && sub) {
         list.push({
           id: `act-a-${a.id}`,
@@ -672,7 +871,7 @@ export default function Home() {
 
     payments.filter(p => p.status === 'paid').forEach(p => {
       const k = kuries.find(kuri => kuri.id === p.kuriId);
-      const sub = subscribers.find(s => s.id === p.subscriberId);
+      const sub = visibleSubscribers.find(s => s.id === p.subscriberId);
       if (k && sub) {
         list.push({
           id: `act-p-${p.id}`,
@@ -716,13 +915,13 @@ export default function Home() {
 
   // --- SEARCH FILTERED SUBSCRIBERS ---
   const filteredSubscribersList = useMemo(() => {
-    if (!subSearchQuery) return subscribers;
-    return subscribers.filter(s => 
+    if (!subSearchQuery) return visibleSubscribers;
+    return visibleSubscribers.filter(s => 
       s.name.toLowerCase().includes(subSearchQuery.toLowerCase()) || 
       s.email.toLowerCase().includes(subSearchQuery.toLowerCase()) ||
       s.phone.includes(subSearchQuery)
     );
-  }, [subscribers, subSearchQuery]);
+  }, [visibleSubscribers, subSearchQuery]);
 
   // --- LEDGER MATRIX ---
   const ledgerData = useMemo(() => {
@@ -731,7 +930,7 @@ export default function Home() {
     const months = Array.from({ length: selectedKuri.durationMonths }, (_, i) => i + 1);
     
     const rows = selectedKuri.subscribers.map(ks => {
-      const sub = subscribers.find(s => s.id === ks.subscriberId);
+      const sub = visibleSubscribers.find(s => s.id === ks.subscriberId);
       const monthlyPaymentsMap: { [key: number]: Payment } = {};
       
       payments
@@ -742,7 +941,7 @@ export default function Home() {
 
       return {
         subscriberId: ks.subscriberId,
-        name: sub?.name || 'Unknown',
+        name: sub?.name || 'Hidden (Provide UUID to view)',
         ticketNumber: ks.ticketNumber,
         isPrized: ks.isPrized,
         prizedMonth: ks.prizedMonth,
@@ -751,21 +950,21 @@ export default function Home() {
     }).sort((a, b) => a.ticketNumber - b.ticketNumber);
 
     return { months, rows };
-  }, [selectedKuri, subscribers, payments]);
+  }, [selectedKuri, visibleSubscribers, payments]);
 
   const prizedCandidates = useMemo(() => {
     if (!selectedKuri) return [];
     return selectedKuri.subscribers
       .filter(ks => !ks.isPrized)
       .map(ks => {
-        const sub = subscribers.find(s => s.id === ks.subscriberId);
+        const sub = visibleSubscribers.find(s => s.id === ks.subscriberId);
         return {
           id: ks.subscriberId,
-          name: sub?.name || 'Unknown',
+          name: sub?.name || `Ticket #${ks.ticketNumber} (Hidden)`,
           ticketNumber: ks.ticketNumber
         };
       });
-  }, [selectedKuri, subscribers]);
+  }, [selectedKuri, visibleSubscribers]);
 
   const triggerLuckyDraw = () => {
     if (!selectedKuri || prizedCandidates.length === 0) return;
@@ -1194,7 +1393,7 @@ export default function Home() {
             <Building className="h-4.5 w-4.5" />
             Active Kuries ({kuries.length})
           </button>
-          {user?.role !== 'member' && (
+          {user?.role !== 'member' && unlockedUuids.length > 0 && (
             <button
               onClick={() => { setActiveTab('subscribers'); setSelectedKuriId(null); }}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 shrink-0 whitespace-nowrap ${
@@ -1230,6 +1429,73 @@ export default function Home() {
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
               
+              {/* Unlock Member Directory Panel */}
+              {user?.role === 'admin' && (
+                <div className="p-5 rounded-2xl glass-panel border border-zinc-800 space-y-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-indigo-400" />
+                      Unlock Member Directory
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      As an admin, you must enter a registered Member UUID to view their contact details, register them, or add them to saving schemes.
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={globalUuidInput}
+                        onChange={(e) => setGlobalUuidInput(e.target.value)}
+                        placeholder="Enter Member UUID (e.g. 1c23a456...)"
+                        className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!globalUuidInput.trim()) return;
+                        const verified = await handleUnlockMemberByUuid(globalUuidInput);
+                        if (verified) {
+                          setGlobalUuidInput('');
+                        }
+                      }}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shrink-0"
+                    >
+                      Unlock & Sync Member
+                    </button>
+                  </div>
+
+                  {unlockedUuids.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-zinc-900">
+                      <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Unlocked Member UUIDs ({unlockedUuids.length})</span>
+                      <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-1">
+                        {unlockedUuids.map(uuid => {
+                          const sub = subscribers.find(s => s.memberUuid === uuid);
+                          return (
+                            <div key={uuid} className="flex items-center gap-2 bg-indigo-950/40 border border-indigo-500/20 px-2.5 py-1.5 rounded-lg text-xs">
+                              <span className="font-mono text-[10px] text-indigo-300">{sub ? sub.name : `${uuid.slice(0, 8)}...`}</span>
+                              <button
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to remove this UUID and hide this member?')) {
+                                    const updated = unlockedUuids.filter(u => u !== uuid);
+                                    setUnlockedUuids(updated);
+                                    localStorage.setItem('kuri_unlocked_uuids', JSON.stringify(updated));
+                                  }
+                                }}
+                                className="text-zinc-500 hover:text-rose-400"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Member UUID Banner */}
               {user?.role === 'member' && (
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/40 to-sky-950/40 border border-indigo-500/25 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-lg shadow-indigo-500/5 relative overflow-hidden animate-float">
@@ -1279,12 +1545,14 @@ export default function Home() {
                       >
                         <Plus className="h-4 w-4" /> Create Kuri Scheme
                       </button>
-                      <button
-                        onClick={() => setIsSubscriberModalOpen(true)}
-                        className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-sm rounded-xl border border-zinc-700 transition-colors flex items-center gap-2"
-                      >
-                        <UserPlus className="h-4 w-4" /> Add Subscriber
-                      </button>
+                      {unlockedUuids.length > 0 && (
+                        <button
+                          onClick={() => setIsSubscriberModalOpen(true)}
+                          className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold text-sm rounded-xl border border-zinc-700 transition-colors flex items-center gap-2"
+                        >
+                          <UserPlus className="h-4 w-4" /> Add Subscriber
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1587,6 +1855,35 @@ export default function Home() {
                     )}
                   </div>
 
+                  {user?.role === 'admin' && selectedKuri.status === 'active' && (
+                    <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800 space-y-3">
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <UserPlus className="h-4 w-4 text-indigo-400" />
+                        Enroll New Member to this Scheme
+                      </h4>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={activeSchemeUuidInput}
+                          onChange={(e) => setActiveSchemeUuidInput(e.target.value)}
+                          placeholder="Enter Member UUID to add..."
+                          className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!activeSchemeUuidInput.trim()) return;
+                            await handleAddMemberToActiveSchemeByUuid(selectedKuri.id, activeSchemeUuidInput);
+                            setActiveSchemeUuidInput('');
+                          }}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-all"
+                        >
+                          Add Member
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800">
                       <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider font-mono">Chit Value</span>
@@ -1703,15 +2000,16 @@ export default function Home() {
                       </div>
                       <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-2">
                         {selectedKuri.subscribers.map(ks => {
-                          const sub = subscribers.find(s => s.id === ks.subscriberId);
-                          if (!sub) return null;
+                          const sub = visibleSubscribers.find(s => s.id === ks.subscriberId);
+                          const displayName = sub ? sub.name : `Ticket #${ks.ticketNumber} (Hidden)`;
+                          const displayPhone = sub ? sub.phone : 'UUID locked';
                           return (
                             <div key={ks.subscriberId} className="p-3.5 rounded-xl bg-zinc-900/30 border border-zinc-800/80 flex items-center justify-between gap-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-9 w-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 text-xs font-bold font-mono">#{ks.ticketNumber}</div>
                                 <div>
-                                  <h4 className="text-sm font-bold text-white">{sub.name}</h4>
-                                  <span className="text-[10.5px] text-zinc-500 font-medium flex items-center gap-2"><Phone className="h-3 w-3" /> {sub.phone}</span>
+                                  <h4 className="text-sm font-bold text-white">{displayName}</h4>
+                                  <span className="text-[10.5px] text-zinc-500 font-medium flex items-center gap-2"><Phone className="h-3 w-3" /> {displayPhone}</span>
                                 </div>
                               </div>
                               <div>
@@ -1855,10 +2153,33 @@ export default function Home() {
                 </div>
               </div>
 
+              <div className="space-y-2 border-b border-zinc-900 pb-4">
+                <label className="text-xs font-semibold text-zinc-400">Enroll Member by UUID</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={schemeUuidInput}
+                    onChange={(e) => setSchemeUuidInput(e.target.value)}
+                    placeholder="Enter Member UUID (e.g. 1c23a456...)"
+                    className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleUnlockAndEnrollInScheme(schemeUuidInput)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-all"
+                  >
+                    Enroll Member
+                  </button>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <div className="flex justify-between items-center"><label className="text-xs font-semibold text-zinc-400">Enroll Subscribers ({selectedEnrollSubscribers.length} selected)</label><span className="text-[10px] text-zinc-500 font-bold">Need exactly {newKuriDuration} subscribers</span></div>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-semibold text-zinc-400">Enroll Subscribers ({selectedEnrollSubscribers.length} selected)</label>
+                  <span className="text-[10px] text-indigo-400 font-bold">No member limit</span>
+                </div>
                 <div className="border border-zinc-800 bg-zinc-950/40 rounded-xl p-3.5 max-h-[160px] overflow-y-auto space-y-2">
-                  {subscribers.map((sub) => {
+                  {visibleSubscribers.map((sub) => {
                     const isSelected = selectedEnrollSubscribers.includes(sub.id);
                     return (
                       <div key={sub.id} onClick={() => toggleSubSelect(sub.id)} className={`p-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${isSelected ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/20' : 'bg-zinc-900/30 text-zinc-400 border-zinc-850 hover:bg-zinc-800/20'}`}>
@@ -1867,6 +2188,11 @@ export default function Home() {
                       </div>
                     );
                   })}
+                  {visibleSubscribers.length === 0 && (
+                    <div className="text-center py-4 text-zinc-500 text-xs">
+                      No unlocked members. Use the UUID input above to search and enroll members.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1886,33 +2212,99 @@ export default function Home() {
             <button onClick={() => setIsSubscriberModalOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"><X className="h-5 w-5" /></button>
             <div>
               <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2"><UserPlus className="h-5 w-5 text-indigo-400" />Register New Subscriber</h3>
-              <p className="text-xs text-zinc-400 mt-1">Create a subscriber card to enroll them in schemes.</p>
+              <p className="text-xs text-zinc-400 mt-1">Provide a registered Member UUID to load and register their subscriber card.</p>
             </div>
-            <form onSubmit={handleAddSubscriber} className="space-y-4">
+            
+            <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Full Name</label>
-                <input type="text" required value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="e.g. Ramesh Kumar" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
+                <label className="text-xs font-semibold text-zinc-400">Member UUID</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newSubMemberUuid} 
+                    onChange={(e) => setNewSubMemberUuid(e.target.value)} 
+                    placeholder="e.g. 1c23a456-7890-bcde-fgh1-23456789abcd" 
+                    className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500 font-mono" 
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!newSubMemberUuid.trim()) return;
+                      try {
+                        const response = await fetch(`/api/auth/member-by-uuid?uuid=${newSubMemberUuid.trim()}`);
+                        if (!response.ok) {
+                          const data = await response.json();
+                          alert(data.error || 'Invalid Member UUID');
+                          return;
+                        }
+                        const data = await response.json();
+                        setNewSubName(data.member.name);
+                        setNewSubEmail(data.member.email);
+                        alert(`Member found: ${data.member.name}. You can now save.`);
+                      } catch (err) {
+                        alert('Error verifying UUID');
+                      }
+                    }}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-all"
+                  >
+                    Verify
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Contact Number</label>
-                <input type="text" value={newSubPhone} onChange={(e) => setNewSubPhone(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Email Address</label>
-                <input type="email" value={newSubEmail} onChange={(e) => setNewSubEmail(e.target.value)} placeholder="ramesh@gmail.com" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Link Member UUID (Optional)</label>
-                <input type="text" value={newSubMemberUuid} onChange={(e) => setNewSubMemberUuid(e.target.value)} placeholder="e.g. 1c23a456-7890-bcde-fgh1-23456789abcd" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-indigo-500 font-mono" />
-                <p className="text-[9px] text-zinc-500 leading-normal">
-                  Link this subscriber card to a registered Member UUID to synchronize their read-only portal view.
-                </p>
-              </div>
-              <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
-                <button type="button" onClick={() => setIsSubscriberModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-600/10">Create Record</button>
-              </div>
-            </form>
+
+              {newSubName && (
+                <div className="space-y-4 pt-4 border-t border-zinc-900 animate-fade-in">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400">Full Name</label>
+                    <input type="text" disabled value={newSubName} className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-zinc-400" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400">Email Address</label>
+                    <input type="email" disabled value={newSubEmail} className="w-full px-3 py-2 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-zinc-400" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-400">Contact Number</label>
+                    <input type="text" value={newSubPhone} onChange={(e) => setNewSubPhone(e.target.value)} placeholder="+91 98765 43210" className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
+                  </div>
+                  
+                  <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3">
+                    <button type="button" onClick={() => setIsSubscriberModalOpen(false)} className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-semibold text-xs rounded-xl border border-zinc-800 transition-colors">Cancel</button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const newSub: Subscriber = {
+                          id: `sub-${Date.now()}`,
+                          name: newSubName,
+                          phone: newSubPhone || '+91 99999 00000',
+                          email: newSubEmail,
+                          memberUuid: newSubMemberUuid.trim()
+                        };
+                        const updatedSubs = [...subscribers, newSub];
+                        
+                        let updatedUnlocked = [...unlockedUuids];
+                        if (!unlockedUuids.includes(newSubMemberUuid.trim())) {
+                          updatedUnlocked.push(newSubMemberUuid.trim());
+                          setUnlockedUuids(updatedUnlocked);
+                          localStorage.setItem('kuri_unlocked_uuids', JSON.stringify(updatedUnlocked));
+                        }
+
+                        saveState(updatedSubs, kuries, auctions, payments);
+                        
+                        setNewSubName('');
+                        setNewSubPhone('');
+                        setNewSubEmail('');
+                        setNewSubMemberUuid('');
+                        setIsSubscriberModalOpen(false);
+                        alert(`Successfully registered subscriber: ${newSub.name}`);
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold text-xs rounded-xl transition-all shadow-md"
+                    >
+                      Save Subscriber
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1992,20 +2384,13 @@ export default function Home() {
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent pointer-events-none" />
                       <Trophy className="h-12 w-12 text-amber-400 animate-pulse animate-bounce" />
                       <div>
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-extrabold uppercase tracking-wider font-mono">Draw Winner Selected!</span>
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1.5 rounded-full font-extrabold uppercase tracking-wider font-mono">Draw Winner Selected!</span>
                         <h4 className="text-lg font-black text-white mt-2 tracking-tight">{luckyDrawWinner.name}</h4>
                         <p className="text-xs text-zinc-400 mt-0.5 font-mono">Ticket Number: <span className="text-white font-bold">#{luckyDrawWinner.ticketNumber}</span></p>
                       </div>
                       <div className="pt-2 text-[10px] text-zinc-500 font-medium">
                         Auto-configured payout: <span className="text-white font-bold">₹{auctionWinningBid.toLocaleString('en-IN')}</span> (Max Payout minus Foreman's Commission)
                       </div>
-                      <button
-                        type="button"
-                        onClick={triggerLuckyDraw}
-                        className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 underline mt-1"
-                      >
-                        Re-draw another person
-                      </button>
                     </div>
                   ) : (
                     <div className="p-6 bg-zinc-900/30 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-center space-y-4">
