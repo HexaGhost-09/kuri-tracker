@@ -1,16 +1,9 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 export async function POST() {
-  const response = NextResponse.json({ message: 'Logged out successfully' });
+  const cookieStore = await cookies();
+  cookieStore.delete('kuri_auth_token');
   
-  // Clear cookie
-  response.cookies.set('kuri_auth_token', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 0, // delete instantly
-    path: '/'
-  });
-
-  return response;
+  return NextResponse.json({ message: 'Logged out successfully' });
 }
