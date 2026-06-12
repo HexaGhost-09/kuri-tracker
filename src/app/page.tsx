@@ -1140,6 +1140,26 @@ export default function Home() {
     }
   };
 
+  // Remove Subscriber from a Scheme (Kuri)
+  const handleRemoveSubscriberFromKuri = (kuriId: string, subId: string) => {
+    if (!confirm('Are you sure you want to remove this subscriber from the scheme?')) return;
+    // Update kuries by removing the subscriber entry
+    const updatedKuries = kuries.map(k => {
+      if (k.id === kuriId) {
+        return {
+          ...k,
+          subscribers: k.subscribers.filter(ks => ks.subscriberId !== subId)
+        };
+      }
+      return k;
+    });
+    // Remove any pending payments for this subscriber in this kuri
+    const updatedPayments = payments.filter(p => !(p.kuriId === kuriId && p.subscriberId === subId && p.status === 'pending'));
+    // Persist state (subscribers unchanged)
+    saveState(subscribers, updatedKuries, auctions, updatedPayments);
+    alert('Subscriber removed from the scheme successfully.');
+  };
+
   const toggleSubSelect = (subId: string) => {
     if (selectedEnrollSubscribers.includes(subId)) {
       setSelectedEnrollSubscribers(selectedEnrollSubscribers.filter(id => id !== subId));
@@ -2669,17 +2689,30 @@ export default function Home() {
                                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Active Subscriber</span>
                                 )}
                                 {user?.role === 'admin' && !ks.isPrized && (
-                                  <button
-                                    onClick={() => {
-                                      const msg = prompt(`Enter custom reminder for ${displayName}:`, `Reminder: Please pay your installment of ₹${selectedKuri.installmentAmount.toLocaleString('en-IN')} for Month ${selectedKuri.currentMonth} in scheme "${selectedKuri.name}" before the payday (${selectedKuri.payday || 10}th of the month).`);
-                                      if (msg !== null) {
-                                        handleSendReminder(selectedKuri.id, ks.subscriberId, msg);
-                                      }
-                                    }}
-                                    className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[10px] font-bold rounded-lg transition-all"
-                                  >
-                                    Remind
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        if (confirm('Are you sure you want to remove this subscriber from the scheme?')) {
+                                          handleRemoveSubscriberFromKuri(selectedKuri.id, ks.subscriberId);
+                                        }
+                                      }}
+                                      className="p-1.5 text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                      title="Remove from scheme"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const msg = prompt(`Enter custom reminder for ${displayName}:`, `Reminder: Please pay your installment of ₹${selectedKuri.installmentAmount.toLocaleString('en-IN')} for Month ${selectedKuri.currentMonth} in scheme "${selectedKuri.name}" before the payday (${selectedKuri.payday || 10}th of the month).`);
+                                        if (msg !== null) {
+                                          handleSendReminder(selectedKuri.id, ks.subscriberId, msg);
+                                        }
+                                      }}
+                                      className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[10px] font-bold rounded-lg transition-all"
+                                    >
+                                      Remind
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </div>
