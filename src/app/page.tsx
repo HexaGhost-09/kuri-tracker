@@ -130,6 +130,8 @@ export default function Home() {
   const [globalUuidInput, setGlobalUuidInput] = useState('');
   const [schemeUuidInput, setSchemeUuidInput] = useState('');
   const [activeSchemeUuidInput, setActiveSchemeUuidInput] = useState('');
+  const [manualMemberName, setManualMemberName] = useState('');
+  const [manualMemberPhone, setManualMemberPhone] = useState('');
 
   // Join Requests
   interface JoinRequest {
@@ -728,6 +730,61 @@ export default function Home() {
       console.error(err);
       alert('Error verifying and enrolling member');
     }
+  };
+
+  const handleCreateAndEnrollMemberManually = (kuriId: string, name: string, phone: string) => {
+    if (!name.trim()) {
+      alert('Please provide a name.');
+      return;
+    }
+    
+    const subId = `sub-${Date.now()}`;
+    const newSub: Subscriber = {
+      id: subId,
+      name: name.trim(),
+      phone: phone.trim() || '+91 99999 00000',
+      email: '',
+      memberUuid: ''
+    };
+    const updatedSubs = [...subscribers, newSub];
+
+    const kuri = kuries.find(k => k.id === kuriId);
+    if (!kuri) return;
+
+    const nextTicketNumber = kuri.subscribers.length + 1;
+    const updatedKuriSubscribers: KuriSubscriber[] = [
+      ...kuri.subscribers,
+      {
+        subscriberId: subId,
+        ticketNumber: nextTicketNumber,
+        isPrized: false
+      }
+    ];
+
+    const newPayment: Payment = {
+      id: `pay-${Date.now()}-${subId}`,
+      kuriId: kuriId,
+      subscriberId: subId,
+      month: kuri.currentMonth,
+      amount: kuri.installmentAmount,
+      date: '',
+      status: 'pending'
+    };
+
+    const updatedKuries = kuries.map(k => {
+      if (k.id === kuriId) {
+        return {
+          ...k,
+          subscribers: updatedKuriSubscribers
+        };
+      }
+      return k;
+    });
+
+    const updatedPayments = [...payments, newPayment];
+
+    saveState(updatedSubs, updatedKuries, auctions, updatedPayments);
+    alert(`Successfully enrolled manual subscriber: ${name.trim()} (Ticket #${nextTicketNumber})`);
   };
 
   // --- COMPUTED DASHBOARD METRICS ---
@@ -2360,30 +2417,71 @@ export default function Home() {
                   </div>
 
                   {user?.role === 'admin' && selectedKuri.status === 'active' && (
-                    <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800 space-y-3">
-                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <UserPlus className="h-4 w-4 text-indigo-400" />
-                        Enroll New Member to this Scheme
-                      </h4>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={activeSchemeUuidInput}
-                          onChange={(e) => setActiveSchemeUuidInput(e.target.value)}
-                          placeholder="Enter Member UUID to add..."
-                          className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!activeSchemeUuidInput.trim()) return;
-                            await handleAddMemberToActiveSchemeByUuid(selectedKuri.id, activeSchemeUuidInput);
-                            setActiveSchemeUuidInput('');
-                          }}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-all"
-                        >
-                          Add Member
-                        </button>
+                    <div className="p-4 rounded-xl bg-zinc-900/30 border border-zinc-800 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-850 pb-2">
+                        <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <UserPlus className="h-4 w-4 text-violet-400" />
+                          Enroll Member to this Scheme
+                        </h4>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Option A: Add by UUID */}
+                        <div className="space-y-2">
+                          <span className="text-[10px] uppercase font-black text-zinc-500 font-mono tracking-wider block">Option A: Enroll Registered Member via UUID</span>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={activeSchemeUuidInput}
+                              onChange={(e) => setActiveSchemeUuidInput(e.target.value)}
+                              placeholder="Enter Member UUID to add..."
+                              className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-violet-500 font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!activeSchemeUuidInput.trim()) return;
+                                await handleAddMemberToActiveSchemeByUuid(selectedKuri.id, activeSchemeUuidInput);
+                                setActiveSchemeUuidInput('');
+                              }}
+                              className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-lg transition-all shadow-md active:scale-95 shrink-0"
+                            >
+                              Add by UUID
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Option B: Create and Add Manually */}
+                        <div className="space-y-2 border-t lg:border-t-0 lg:border-l border-zinc-850 pt-4 lg:pt-0 lg:pl-4">
+                          <span className="text-[10px] uppercase font-black text-zinc-500 font-mono tracking-wider block">Option B: Create & Enroll Member Manually</span>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <input
+                              type="text"
+                              value={manualMemberName}
+                              onChange={(e) => setManualMemberName(e.target.value)}
+                              placeholder="Full Name (required)"
+                              className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-violet-500"
+                            />
+                            <input
+                              type="text"
+                              value={manualMemberPhone}
+                              onChange={(e) => setManualMemberPhone(e.target.value)}
+                              placeholder="Phone Number (optional)"
+                              className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-violet-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleCreateAndEnrollMemberManually(selectedKuri.id, manualMemberName, manualMemberPhone);
+                                setManualMemberName('');
+                                setManualMemberPhone('');
+                              }}
+                              className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-lg transition-all shadow-md active:scale-95 shrink-0"
+                            >
+                              Add Manually
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
